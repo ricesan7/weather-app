@@ -16,6 +16,7 @@ import android.view.ViewGroup;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import android.widget.SeekBar;
 import android.widget.TextView;
 import java.io.IOException;
 import java.util.Locale;
@@ -71,7 +72,7 @@ public final class MainActivity extends Activity {
         root.setGravity(Gravity.CENTER_HORIZONTAL);
 
         TextView title = new TextView(this);
-        title.setText("Brother FAX-2840 USB Print v0.6");
+        title.setText("Brother FAX-2840 USB Print v0.7");
         title.setTextSize(22f);
         root.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -79,6 +80,38 @@ public final class MainActivity extends Activity {
         status.setTextSize(16f);
         status.setPadding(0,dp(20),0,dp(16));
         root.addView(status, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView densityTitle = new TextView(this);
+        densityTitle.setText("黒濃度");
+        densityTitle.setTextSize(18f);
+        densityTitle.setPadding(0,dp(4),0,0);
+        root.addView(densityTitle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView densityValue = new TextView(this);
+        densityValue.setTextSize(15f);
+        int savedDensity = PrintQualitySettings.getDensity(this);
+        densityValue.setText(formatDensity(savedDensity));
+        root.addView(densityValue, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        SeekBar densityBar = new SeekBar(this);
+        densityBar.setMax(PrintQualitySettings.MAX_DENSITY - PrintQualitySettings.MIN_DENSITY);
+        densityBar.setProgress(savedDensity - PrintQualitySettings.MIN_DENSITY);
+        densityBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
+            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
+                int value = progress + PrintQualitySettings.MIN_DENSITY;
+                densityValue.setText(formatDensity(value));
+                if (fromUser) PrintQualitySettings.setDensity(MainActivity.this, value);
+            }
+            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
+            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+        });
+        root.addView(densityBar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView densityHint = new TextView(this);
+        densityHint.setText("1 = 薄い   5 = 標準   10 = 濃い\n黒文字は読みやすさを保ち、画像・イラスト・グレーの濃さを主に調整します。");
+        densityHint.setTextSize(13f);
+        densityHint.setPadding(0,0,0,dp(12));
+        root.addView(densityHint, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         Button directTest = new Button(this);
         directTest.setText("FAX-2840直接テスト印刷");
@@ -217,6 +250,12 @@ public final class MainActivity extends Activity {
     @SuppressWarnings("deprecation") private static UsbDevice getUsbDeviceExtra(Intent intent) {
         if (Build.VERSION.SDK_INT >= 33) return intent.getParcelableExtra(UsbManager.EXTRA_DEVICE, UsbDevice.class);
         return intent.getParcelableExtra(UsbManager.EXTRA_DEVICE);
+    }
+
+    private static String formatDensity(int density) {
+        int d = PrintQualitySettings.clamp(density);
+        String label = d == PrintQualitySettings.DEFAULT_DENSITY ? "（標準）" : "";
+        return "黒濃度: " + d + label;
     }
 
     private static String safeMessage(Throwable t) {
