@@ -37,6 +37,9 @@ jobs:
       - name: Regression test - v0.7 density control
         run: python3 Fax2840UsbPrint/tests/test_v07_density_control.py
 
+      - name: Regression test - v0.8 split-page printing
+        run: python3 Fax2840UsbPrint/tests/test_v08_page_split.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
