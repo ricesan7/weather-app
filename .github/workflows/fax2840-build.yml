@@ -1,0 +1,45 @@
+name: Build FAX-2840 Android APK
+
+on:
+  push:
+    branches: [ "fax2840-apk-build" ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Restore Android project
+        run: |
+          base64 -d fax2840-build/Fax2840UsbPrint-ci.zip.b64 > Fax2840UsbPrint-ci.zip
+          unzip -q Fax2840UsbPrint-ci.zip
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: Install Android SDK 35
+        run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
+
+      - name: Set up Gradle 8.9
+        uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+
+      - name: Build debug APK
+        run: gradle :app:assembleDebug --stacktrace
+        working-directory: Fax2840UsbPrint
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: Fax2840UsbPrint-debug-apk
+          path: Fax2840UsbPrint/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
