@@ -24,7 +24,6 @@ final class BrotherHbpPrinter {
     private static final int STRIPE_HEIGHT = 64;
     private static final double MIDTONE_GAMMA = 0.78;
 
-    // 8x8 Bayer ordered-dither matrix, values 0..63.
     private static final int[][] BAYER_8X8 = {
             { 0,48,12,60, 3,51,15,63},
             {32,16,44,28,35,19,47,31},
@@ -46,23 +45,51 @@ final class BrotherHbpPrinter {
         printPdf(pdfFd, copies, transport, cancelled, sink, PrintQualitySettings.DEFAULT_DENSITY);
     }
 
-    static void printPdf(ParcelFileDescriptor pdfFd, int copies, Fax2840Usb transport, CancelCheck cancelled, DiagnosticSink sink, int density) throws IOException {
+    static void printPdf(ParcelFileDescriptor pdfFd, int copies, Fax2840Usb transport, CancelCheck cancelled,
+                         DiagnosticSink sink, int density) throws IOException {
+        printPdf(pdfFd, copies, transport, cancelled, sink, density, PageSplitSettings.DEFAULT_ZOOM_PERCENT);
+    }
+
+    static void printPdf(ParcelFileDescriptor pdfFd, int copies, Fax2840Usb transport, CancelCheck cancelled,
+                         DiagnosticSink sink, int density, int zoomPercent) throws IOException {
         copies = Math.max(1, copies);
         density = clampDensity(density);
+        zoomPercent = PageSplitSettings.normalizeZoom(zoomPercent);
+
         event(sink, "HBP: verify printer");
-        if (!transport.confirmsFax2840()) throw new IOException("Connected USB device did not identify as Brother FAX-2840");
+        if (!transport.confirmsFax2840()) {
+            throw new IOException("Connected USB device did not identify as Brother FAX-2840");
+        }
+
         beginJob(transport, "Android FAX-2840", sink);
         boolean pageStarted = false;
         try (PdfRenderer renderer = new PdfRenderer(pdfFd)) {
             if (renderer.getPageCount() == 0) throw new IOException("PDF contains no pages");
-            event(sink, "PDF pages=" + renderer.getPageCount());
+            event(sink, "PDF pages=" + renderer.getPageCount() + " zoom=" + zoomPercent + "%");
             writePageHeader(transport, copies);
+
             for (int pageIndex = 0; pageIndex < renderer.getPageCount(); pageIndex++) {
                 checkCancelled(cancelled);
-                event(sink, "page " + (pageIndex + 1) + ": render/start");
                 try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
-                    pageStarted = true;
-                    writeRasterPage(page, transport, cancelled, sink, density);
+                    TileLayout layout = calculateTileLayout(page.getWidth(), page.getHeight(), zoomPercent);
+                    event(sink, "page " + (pageIndex + 1) + ": render/start tiles="
+                            + layout.tileCols + "x" + layout.tileRows
+                            + " total=" + (layout.tileCols * layout.tileRows)
+                            + " zoom=" + zoomPercent + "%");
+
+                    int tileNumber = 0;
+                    for (int tileRow = 0; tileRow < layout.tileRows; tileRow++) {
+                        for (int tileCol = 0; tileCol < layout.tileCols; tileCol++) {
+                            checkCancelled(cancelled);
+                            tileNumber++;
+                            pageStarted = true;
+                            event(sink, "page " + (pageIndex + 1)
+                                    + ": tile " + tileNumber + "/" + (layout.tileCols * layout.tileRows)
+                                    + " col=" + (tileCol + 1) + " row=" + (tileRow + 1));
+                            writeRasterTile(page, transport, cancelled, sink, density,
+                                    zoomPercent, layout, tileCol, tileRow);
+                        }
+                    }
                 }
                 event(sink, "page " + (pageIndex + 1) + ": sent bytes=" + transport.getBytesWritten());
             }
@@ -97,7 +124,9 @@ final class BrotherHbpPrinter {
                 block.addLine(HbpCodec.encodeAbsoluteLine(mono));
                 if ((y + 1) % 64 == 0) {
                     block.flush();
-                    if ((y + 1) % 1024 == 0) event(sink, "direct-test: raster lines=" + (y + 1) + " bytes=" + transport.getBytesWritten());
+                    if ((y + 1) % 1024 == 0) {
+                        event(sink, "direct-test: raster lines=" + (y + 1) + " bytes=" + transport.getBytesWritten());
+                    }
                 }
             }
             block.flush();
@@ -124,19 +153,34 @@ final class BrotherHbpPrinter {
 
     private static void writePageHeader(Fax2840Usb transport, int copies) throws IOException {
         transport.writeAscii("\033%-12345X@PJL\n");
-        transport.writeAscii("@PJL SET RAS1200MODE = FALSE\n@PJL SET RESOLUTION = 600\n@PJL SET ECONOMODE = OFF\n@PJL SET SOURCETRAY = AUTO\n@PJL SET MEDIATYPE = PLAIN\n@PJL SET PAPER = A4\n@PJL SET PAGEPROTECT = AUTO\n@PJL SET ORIENTATION = PORTRAIT\n@PJL ENTER LANGUAGE = PCL\n");
+        transport.writeAscii("@PJL SET RAS1200MODE = FALSE\n"
+                + "@PJL SET RESOLUTION = 600\n"
+                + "@PJL SET ECONOMODE = OFF\n"
+                + "@PJL SET SOURCETRAY = AUTO\n"
+                + "@PJL SET MEDIATYPE = PLAIN\n"
+                + "@PJL SET PAPER = A4\n"
+                + "@PJL SET PAGEPROTECT = AUTO\n"
+                + "@PJL SET ORIENTATION = PORTRAIT\n"
+                + "@PJL ENTER LANGUAGE = PCL\n");
         transport.writeAscii("\033E");
         transport.writeAscii("\033&l" + copies + "X");
     }
 
-    private static void writeRasterPage(PdfRenderer.Page page, Fax2840Usb transport, CancelCheck cancelled, DiagnosticSink sink, int density) throws IOException {
+    private static void writeRasterTile(PdfRenderer.Page page, Fax2840Usb transport, CancelCheck cancelled,
+                                        DiagnosticSink sink, int density, int zoomPercent,
+                                        TileLayout layout, int tileCol, int tileRow) throws IOException {
         transport.writeAscii("\033*b1030m");
         HbpCodec.BlockWriter block = new HbpCodec.BlockWriter(transport);
-        int pageWidth = page.getWidth(), pageHeight = page.getHeight();
+        int pageWidth = page.getWidth();
+        int pageHeight = page.getHeight();
+
         event(sink, "raster target=" + A4_WIDTH_PX + "x" + A4_HEIGHT_PX
                 + " printable=" + PRINTABLE_WIDTH_PX + "x" + PRINTABLE_HEIGHT_PX
                 + " margin=" + PRINTABLE_MARGIN_PX
                 + " source=" + pageWidth + "x" + pageHeight
+                + " tile=" + (tileCol + 1) + "," + (tileRow + 1)
+                + "/" + layout.tileCols + "x" + layout.tileRows
+                + " zoom=" + zoomPercent + "%"
                 + " dither=8x8 gamma=" + MIDTONE_GAMMA
                 + " density=" + density);
 
@@ -146,7 +190,10 @@ final class BrotherHbpPrinter {
             int stripeHeight = Math.min(STRIPE_HEIGHT, A4_HEIGHT_PX - startY);
             Bitmap bitmap = Bitmap.createBitmap(A4_WIDTH_PX, stripeHeight, Bitmap.Config.ARGB_8888);
             bitmap.eraseColor(Color.WHITE);
-            page.render(bitmap, null, pageToStripeMatrix(pageWidth, pageHeight, startY), PdfRenderer.Page.RENDER_MODE_FOR_PRINT);
+
+            page.render(bitmap, null,
+                    pageToStripeMatrix(pageWidth, pageHeight, layout, tileCol, tileRow, startY),
+                    PdfRenderer.Page.RENDER_MODE_FOR_PRINT);
 
             int[] pixels = new int[A4_WIDTH_PX * stripeHeight];
             bitmap.getPixels(pixels, 0, A4_WIDTH_PX, 0, 0, A4_WIDTH_PX, stripeHeight);
@@ -156,6 +203,7 @@ final class BrotherHbpPrinter {
                 byte[] mono = new byte[lineBytes];
                 int rowOffset = y * A4_WIDTH_PX;
                 int globalY = startY + y;
+
                 for (int x = 0; x < A4_WIDTH_PX; x++) {
                     int argb = pixels[rowOffset + x];
                     int a = Color.alpha(argb);
@@ -164,12 +212,14 @@ final class BrotherHbpPrinter {
                     int b = Color.blue(argb);
                     int lum = (77 * r + 150 * g + 29 * b) >> 8;
                     if (a < 255) lum = (lum * a + 255 * (255 - a)) / 255;
+
                     if (shouldPrintBlack(lum, x, globalY, density)) {
                         mono[x >> 3] |= (byte)(0x80 >> (x & 7));
                     }
                 }
                 block.addLine(HbpCodec.encodeAbsoluteLine(mono));
             }
+
             block.flush();
             if ((startY / STRIPE_HEIGHT) % 16 == 0) {
                 event(sink, "raster y=" + startY + " bytes=" + transport.getBytesWritten());
@@ -178,32 +228,49 @@ final class BrotherHbpPrinter {
         transport.writeAscii("1030M\f");
     }
 
-    private static Matrix pageToStripeMatrix(int pdfWidth, int pdfHeight, int startY) {
+    private static TileLayout calculateTileLayout(int pdfWidth, int pdfHeight, int zoomPercent) {
+        boolean portrait = pdfWidth <= pdfHeight;
+        float orientedWidth = portrait ? pdfWidth : pdfHeight;
+        float orientedHeight = portrait ? pdfHeight : pdfWidth;
+
+        float baseScale = Math.min(
+                PRINTABLE_WIDTH_PX / orientedWidth,
+                PRINTABLE_HEIGHT_PX / orientedHeight);
+        float scale = baseScale * (PageSplitSettings.normalizeZoom(zoomPercent) / 100f);
+
+        float renderedWidth = orientedWidth * scale;
+        float renderedHeight = orientedHeight * scale;
+
+        int tileCols = Math.max(1, (int)Math.ceil((renderedWidth - 0.5f) / PRINTABLE_WIDTH_PX));
+        int tileRows = Math.max(1, (int)Math.ceil((renderedHeight - 0.5f) / PRINTABLE_HEIGHT_PX));
+
+        return new TileLayout(portrait, scale, renderedWidth, renderedHeight, tileCols, tileRows);
+    }
+
+    private static Matrix pageToStripeMatrix(int pdfWidth, int pdfHeight, TileLayout layout,
+                                             int tileCol, int tileRow, int startY) {
         Matrix matrix = new Matrix();
-        if (pdfWidth <= pdfHeight) {
-            float scale = Math.min(
-                    PRINTABLE_WIDTH_PX / (float)pdfWidth,
-                    PRINTABLE_HEIGHT_PX / (float)pdfHeight);
-            float renderedWidth = pdfWidth * scale;
-            float renderedHeight = pdfHeight * scale;
-            float dx = PRINTABLE_MARGIN_PX + (PRINTABLE_WIDTH_PX - renderedWidth) / 2f;
-            float dy = PRINTABLE_MARGIN_PX + (PRINTABLE_HEIGHT_PX - renderedHeight) / 2f;
+
+        float virtualWidth = layout.tileCols * (float)PRINTABLE_WIDTH_PX;
+        float virtualHeight = layout.tileRows * (float)PRINTABLE_HEIGHT_PX;
+
+        float originX = PRINTABLE_MARGIN_PX
+                + (virtualWidth - layout.renderedWidth) / 2f
+                - tileCol * PRINTABLE_WIDTH_PX;
+        float originY = PRINTABLE_MARGIN_PX
+                + (virtualHeight - layout.renderedHeight) / 2f
+                - tileRow * PRINTABLE_HEIGHT_PX;
+
+        if (layout.portrait) {
             matrix.setValues(new float[]{
-                    scale, 0f, dx,
-                    0f, scale, dy - startY,
+                    layout.scale, 0f, originX,
+                    0f, layout.scale, originY - startY,
                     0f, 0f, 1f
             });
         } else {
-            float scale = Math.min(
-                    PRINTABLE_WIDTH_PX / (float)pdfHeight,
-                    PRINTABLE_HEIGHT_PX / (float)pdfWidth);
-            float renderedWidth = pdfHeight * scale;
-            float renderedHeight = pdfWidth * scale;
-            float dx = PRINTABLE_MARGIN_PX + (PRINTABLE_WIDTH_PX - renderedWidth) / 2f;
-            float dy = PRINTABLE_MARGIN_PX + (PRINTABLE_HEIGHT_PX - renderedHeight) / 2f;
             matrix.setValues(new float[]{
-                    0f, -scale, dx + renderedWidth,
-                    scale, 0f, dy - startY,
+                    0f, -layout.scale, originX + layout.renderedWidth,
+                    layout.scale, 0f, originY - startY,
                     0f, 0f, 1f
             });
         }
@@ -211,8 +278,6 @@ final class BrotherHbpPrinter {
     }
 
     private static boolean shouldPrintBlack(int luminance, int x, int y, int density) {
-        // Keep true black text/lines crisp. Density mainly controls photos,
-        // illustrations and anti-aliased gray regions.
         if (luminance <= 32) return true;
         if (luminance >= 252) return false;
 
@@ -245,5 +310,24 @@ final class BrotherHbpPrinter {
 
     private static void checkCancelled(CancelCheck cancelled) {
         if (cancelled != null && cancelled.isCancelled()) throw new CancellationException("Print job cancelled");
+    }
+
+    private static final class TileLayout {
+        final boolean portrait;
+        final float scale;
+        final float renderedWidth;
+        final float renderedHeight;
+        final int tileCols;
+        final int tileRows;
+
+        TileLayout(boolean portrait, float scale, float renderedWidth, float renderedHeight,
+                   int tileCols, int tileRows) {
+            this.portrait = portrait;
+            this.scale = scale;
+            this.renderedWidth = renderedWidth;
+            this.renderedHeight = renderedHeight;
+            this.tileCols = tileCols;
+            this.tileRows = tileRows;
+        }
     }
 }
