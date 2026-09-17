@@ -31,6 +31,9 @@ jobs:
       - name: Regression test - v0.5 seekable PDF spool
         run: python3 Fax2840UsbPrint/tests/test_v05_seekable_pdf.py
 
+      - name: Regression test - v0.6 printable area and dithering
+        run: python3 Fax2840UsbPrint/tests/test_v06_print_quality.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
