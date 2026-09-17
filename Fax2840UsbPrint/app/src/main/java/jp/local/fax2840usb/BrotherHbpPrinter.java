@@ -14,8 +14,27 @@ final class BrotherHbpPrinter {
 
     private static final int A4_WIDTH_PX = 4960;
     private static final int A4_HEIGHT_PX = 7016;
+
+    // Brother FAX-2840 PPD: A4 ImageableArea = 12 12 583 830 points.
+    // 12pt at 600dpi = exactly 100 pixels on every edge.
+    private static final int PRINTABLE_MARGIN_PX = 100;
+    private static final int PRINTABLE_WIDTH_PX = A4_WIDTH_PX - (PRINTABLE_MARGIN_PX * 2);
+    private static final int PRINTABLE_HEIGHT_PX = A4_HEIGHT_PX - (PRINTABLE_MARGIN_PX * 2);
+
     private static final int STRIPE_HEIGHT = 64;
-    private static final int BLACK_THRESHOLD = 192;
+    private static final double MIDTONE_GAMMA = 0.78;
+
+    // 8x8 Bayer ordered-dither matrix, values 0..63.
+    private static final int[][] BAYER_8X8 = {
+            { 0,48,12,60, 3,51,15,63},
+            {32,16,44,28,35,19,47,31},
+            { 8,56, 4,52,11,59, 7,55},
+            {40,24,36,20,43,27,39,23},
+            { 2,50,14,62, 1,49,13,61},
+            {34,18,46,30,33,17,45,29},
+            {10,58, 6,54, 9,57, 5,53},
+            {42,26,38,22,41,25,37,21}
+    };
 
     private BrotherHbpPrinter() {}
 
@@ -109,7 +128,12 @@ final class BrotherHbpPrinter {
         transport.writeAscii("\033*b1030m");
         HbpCodec.BlockWriter block = new HbpCodec.BlockWriter(transport);
         int pageWidth = page.getWidth(), pageHeight = page.getHeight();
-        event(sink, "raster target=" + A4_WIDTH_PX + "x" + A4_HEIGHT_PX + " source=" + pageWidth + "x" + pageHeight);
+        event(sink, "raster target=" + A4_WIDTH_PX + "x" + A4_HEIGHT_PX
+                + " printable=" + PRINTABLE_WIDTH_PX + "x" + PRINTABLE_HEIGHT_PX
+                + " margin=" + PRINTABLE_MARGIN_PX
+                + " source=" + pageWidth + "x" + pageHeight
+                + " dither=8x8 gamma=" + MIDTONE_GAMMA);
+
         int lineBytes = (A4_WIDTH_PX + 7) / 8;
         for (int startY = 0; startY < A4_HEIGHT_PX; startY += STRIPE_HEIGHT) {
             checkCancelled(cancelled);
@@ -117,23 +141,33 @@ final class BrotherHbpPrinter {
             Bitmap bitmap = Bitmap.createBitmap(A4_WIDTH_PX, stripeHeight, Bitmap.Config.ARGB_8888);
             bitmap.eraseColor(Color.WHITE);
             page.render(bitmap, null, pageToStripeMatrix(pageWidth, pageHeight, startY), PdfRenderer.Page.RENDER_MODE_FOR_PRINT);
+
             int[] pixels = new int[A4_WIDTH_PX * stripeHeight];
             bitmap.getPixels(pixels, 0, A4_WIDTH_PX, 0, 0, A4_WIDTH_PX, stripeHeight);
             bitmap.recycle();
+
             for (int y = 0; y < stripeHeight; y++) {
                 byte[] mono = new byte[lineBytes];
                 int rowOffset = y * A4_WIDTH_PX;
+                int globalY = startY + y;
                 for (int x = 0; x < A4_WIDTH_PX; x++) {
                     int argb = pixels[rowOffset + x];
-                    int a = Color.alpha(argb), r = Color.red(argb), g = Color.green(argb), b = Color.blue(argb);
+                    int a = Color.alpha(argb);
+                    int r = Color.red(argb);
+                    int g = Color.green(argb);
+                    int b = Color.blue(argb);
                     int lum = (77 * r + 150 * g + 29 * b) >> 8;
                     if (a < 255) lum = (lum * a + 255 * (255 - a)) / 255;
-                    if (lum < BLACK_THRESHOLD) mono[x >> 3] |= (byte)(0x80 >> (x & 7));
+                    if (shouldPrintBlack(lum, x, globalY)) {
+                        mono[x >> 3] |= (byte)(0x80 >> (x & 7));
+                    }
                 }
                 block.addLine(HbpCodec.encodeAbsoluteLine(mono));
             }
             block.flush();
-            if ((startY / STRIPE_HEIGHT) % 16 == 0) event(sink, "raster y=" + startY + " bytes=" + transport.getBytesWritten());
+            if ((startY / STRIPE_HEIGHT) % 16 == 0) {
+                event(sink, "raster y=" + startY + " bytes=" + transport.getBytesWritten());
+            }
         }
         transport.writeAscii("1030M\f");
     }
@@ -141,13 +175,51 @@ final class BrotherHbpPrinter {
     private static Matrix pageToStripeMatrix(int pdfWidth, int pdfHeight, int startY) {
         Matrix matrix = new Matrix();
         if (pdfWidth <= pdfHeight) {
-            float sx = A4_WIDTH_PX / (float)pdfWidth, sy = A4_HEIGHT_PX / (float)pdfHeight;
-            matrix.setValues(new float[]{sx,0f,0f,0f,sy,-startY,0f,0f,1f});
+            float scale = Math.min(
+                    PRINTABLE_WIDTH_PX / (float)pdfWidth,
+                    PRINTABLE_HEIGHT_PX / (float)pdfHeight);
+            float renderedWidth = pdfWidth * scale;
+            float renderedHeight = pdfHeight * scale;
+            float dx = PRINTABLE_MARGIN_PX + (PRINTABLE_WIDTH_PX - renderedWidth) / 2f;
+            float dy = PRINTABLE_MARGIN_PX + (PRINTABLE_HEIGHT_PX - renderedHeight) / 2f;
+            matrix.setValues(new float[]{
+                    scale, 0f, dx,
+                    0f, scale, dy - startY,
+                    0f, 0f, 1f
+            });
         } else {
-            float sx = A4_WIDTH_PX / (float)pdfHeight, sy = A4_HEIGHT_PX / (float)pdfWidth;
-            matrix.setValues(new float[]{0f,-sx,A4_WIDTH_PX,sy,0f,-startY,0f,0f,1f});
+            float scale = Math.min(
+                    PRINTABLE_WIDTH_PX / (float)pdfHeight,
+                    PRINTABLE_HEIGHT_PX / (float)pdfWidth);
+            float renderedWidth = pdfHeight * scale;
+            float renderedHeight = pdfWidth * scale;
+            float dx = PRINTABLE_MARGIN_PX + (PRINTABLE_WIDTH_PX - renderedWidth) / 2f;
+            float dy = PRINTABLE_MARGIN_PX + (PRINTABLE_HEIGHT_PX - renderedHeight) / 2f;
+            matrix.setValues(new float[]{
+                    0f, -scale, dx + renderedWidth,
+                    scale, 0f, dy - startY,
+                    0f, 0f, 1f
+            });
         }
         return matrix;
+    }
+
+    private static boolean shouldPrintBlack(int luminance, int x, int y) {
+        if (luminance <= 40) return true;
+        if (luminance >= 252) return false;
+
+        int adjusted = brightenLuminance(luminance);
+        int threshold = (BAYER_8X8[y & 7][x & 7] * 4) + 2;
+        return adjusted < threshold;
+    }
+
+    private static int brightenLuminance(int luminance) {
+        if (luminance <= 32) return luminance;
+        if (luminance >= 252) return 255;
+
+        double normalized = luminance / 255.0;
+        int adjusted = (int)Math.round(Math.pow(normalized, MIDTONE_GAMMA) * 255.0);
+        return Math.max(0, Math.min(255, adjusted));
     }
 
     private static void event(DiagnosticSink sink, String message) {
