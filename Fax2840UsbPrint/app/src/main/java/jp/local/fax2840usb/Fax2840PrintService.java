@@ -56,7 +56,7 @@ public final class Fax2840PrintService extends PrintService {
                         .build();
 
                 PrinterInfo info = new PrinterInfo.Builder(id, "Brother FAX-2840 (USB)", PrinterInfo.STATUS_IDLE)
-                        .setDescription("USB / Brother HBP experimental v0.6")
+                        .setDescription("USB / Brother HBP experimental v0.7")
                         .setCapabilities(caps)
                         .build();
                 addPrinters(Collections.singletonList(info));
@@ -100,7 +100,9 @@ public final class Fax2840PrintService extends PrintService {
         diag.add("document acquired");
 
         int copies = Math.max(1, printJob.getInfo().getCopies());
+        int density = PrintQualitySettings.getDensity(this);
         diag.add("copies=" + copies);
+        diag.add("density=" + density);
         PrintJobId jobId = printJob.getId();
         AtomicBoolean cancelled = new AtomicBoolean(false);
         cancellationFlags.put(jobId, cancelled);
@@ -114,13 +116,14 @@ public final class Fax2840PrintService extends PrintService {
         }
         diag.add("PrintJob state=STARTED");
 
-        new Thread(() -> runPrintJobWorker(printJob, jobId, pdf, copies, device, cancelled, diag), "fax2840-print-job").start();
+        new Thread(() -> runPrintJobWorker(printJob, jobId, pdf, copies, density, device, cancelled, diag), "fax2840-print-job").start();
     }
 
     private void runPrintJobWorker(PrintJob printJob,
                                    PrintJobId jobId,
                                    ParcelFileDescriptor incomingPdf,
                                    int copies,
+                                   int density,
                                    UsbDevice device,
                                    AtomicBoolean cancelled,
                                    PrintDiagnostics diag) {
@@ -135,7 +138,7 @@ public final class Fax2840PrintService extends PrintService {
                 diag.add("USB opened");
                 diag.add("port(before)=" + Fax2840Usb.describePortStatus(usb.readPortStatus()));
                 long before = usb.getBytesWritten();
-                BrotherHbpPrinter.printPdf(spool.getSeekablePdf(), copies, usb, cancelled::get, diag::add);
+                BrotherHbpPrinter.printPdf(spool.getSeekablePdf(), copies, usb, cancelled::get, diag::add, density);
                 long after = usb.getBytesWritten();
                 diag.add("USB bytes delta=" + (after - before) + " total=" + after);
                 diag.add("port(after)=" + Fax2840Usb.describePortStatus(usb.readPortStatus()));
