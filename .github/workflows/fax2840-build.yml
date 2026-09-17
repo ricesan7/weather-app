@@ -3,11 +3,19 @@ name: Build FAX-2840 Android APK
 on:
   push:
     branches: [ "fax2840-apk-build" ]
+    paths-ignore:
+      - "fax2840-build/Fax2840UsbPrint-debug.apk"
   workflow_dispatch:
+
+permissions:
+  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    env:
+      ANDROID_HOME: /usr/local/lib/android/sdk
+      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
     steps:
       - uses: actions/checkout@v4
 
@@ -17,8 +25,8 @@ jobs:
           distribution: temurin
           java-version: '17'
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
+      - name: Accept Android licenses
+        run: yes | sdkmanager --licenses >/dev/null || true
 
       - name: Install Android SDK 35
         run: sdkmanager "platforms;android-35" "build-tools;35.0.0"
@@ -32,9 +40,19 @@ jobs:
         run: gradle :app:assembleDebug --stacktrace
         working-directory: Fax2840UsbPrint
 
-      - name: Upload APK
+      - name: Upload APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: Fax2840UsbPrint-debug-apk
           path: Fax2840UsbPrint/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
+
+      - name: Publish APK to build branch
+        run: |
+          mkdir -p fax2840-build
+          cp Fax2840UsbPrint/app/build/outputs/apk/debug/app-debug.apk fax2840-build/Fax2840UsbPrint-debug.apk
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add fax2840-build/Fax2840UsbPrint-debug.apk
+          git diff --cached --quiet || git commit -m "Build FAX-2840 debug APK"
+          git push
