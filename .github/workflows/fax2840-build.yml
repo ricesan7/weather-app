@@ -2,23 +2,16 @@ name: Build FAX-2840 Android APK
 
 on:
   push:
-    branches: [ "fax2840-apk-build" ]
-    paths-ignore:
-      - "fax2840-build/Fax2840UsbPrint-debug.apk"
+    branches:
+      - fax2840-apk-build
   workflow_dispatch:
-
-permissions:
-  contents: write
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    env:
-      ANDROID_HOME: /usr/local/lib/android/sdk
-      ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
-      SDKMANAGER: /usr/local/lib/android/sdk/cmdline-tools/latest/bin/sdkmanager
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout
+        uses: actions/checkout@v4
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -27,10 +20,10 @@ jobs:
           java-version: '17'
 
       - name: Accept Android licenses
-        run: yes | "$SDKMANAGER" --licenses >/dev/null || true
+        run: yes | /usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager --licenses >/dev/null || true
 
       - name: Install Android SDK 35
-        run: "$SDKMANAGER" "platforms;android-35" "build-tools;35.0.0"
+        run: /usr/local/lib/android/sdk/cmdline-tools/16.0/bin/sdkmanager "platforms;android-35" "build-tools;35.0.0"
 
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
@@ -38,22 +31,15 @@ jobs:
           gradle-version: '8.9'
 
       - name: Build debug APK
-        run: gradle :app:assembleDebug --stacktrace
         working-directory: Fax2840UsbPrint
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+          ANDROID_SDK_ROOT: /usr/local/lib/android/sdk
+        run: gradle :app:assembleDebug --stacktrace
 
-      - name: Upload APK artifact
+      - name: Upload APK
         uses: actions/upload-artifact@v4
         with:
           name: Fax2840UsbPrint-debug-apk
           path: Fax2840UsbPrint/app/build/outputs/apk/debug/app-debug.apk
           if-no-files-found: error
-
-      - name: Publish APK to build branch
-        run: |
-          mkdir -p fax2840-build
-          cp Fax2840UsbPrint/app/build/outputs/apk/debug/app-debug.apk fax2840-build/Fax2840UsbPrint-debug.apk
-          git config user.name "github-actions[bot]"
-          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add fax2840-build/Fax2840UsbPrint-debug.apk
-          git diff --cached --quiet || git commit -m "Build FAX-2840 debug APK"
-          git push
