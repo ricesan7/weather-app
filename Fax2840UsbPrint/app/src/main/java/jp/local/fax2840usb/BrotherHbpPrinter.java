@@ -43,7 +43,12 @@ final class BrotherHbpPrinter {
     }
 
     static void printPdf(ParcelFileDescriptor pdfFd, int copies, Fax2840Usb transport, CancelCheck cancelled, DiagnosticSink sink) throws IOException {
+        printPdf(pdfFd, copies, transport, cancelled, sink, PrintQualitySettings.DEFAULT_DENSITY);
+    }
+
+    static void printPdf(ParcelFileDescriptor pdfFd, int copies, Fax2840Usb transport, CancelCheck cancelled, DiagnosticSink sink, int density) throws IOException {
         copies = Math.max(1, copies);
+        density = clampDensity(density);
         event(sink, "HBP: verify printer");
         if (!transport.confirmsFax2840()) throw new IOException("Connected USB device did not identify as Brother FAX-2840");
         beginJob(transport, "Android FAX-2840", sink);
@@ -57,7 +62,7 @@ final class BrotherHbpPrinter {
                 event(sink, "page " + (pageIndex + 1) + ": render/start");
                 try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
                     pageStarted = true;
-                    writeRasterPage(page, transport, cancelled, sink);
+                    writeRasterPage(page, transport, cancelled, sink, density);
                 }
                 event(sink, "page " + (pageIndex + 1) + ": sent bytes=" + transport.getBytesWritten());
             }
@@ -124,7 +129,7 @@ final class BrotherHbpPrinter {
         transport.writeAscii("\033&l" + copies + "X");
     }
 
-    private static void writeRasterPage(PdfRenderer.Page page, Fax2840Usb transport, CancelCheck cancelled, DiagnosticSink sink) throws IOException {
+    private static void writeRasterPage(PdfRenderer.Page page, Fax2840Usb transport, CancelCheck cancelled, DiagnosticSink sink, int density) throws IOException {
         transport.writeAscii("\033*b1030m");
         HbpCodec.BlockWriter block = new HbpCodec.BlockWriter(transport);
         int pageWidth = page.getWidth(), pageHeight = page.getHeight();
@@ -132,7 +137,8 @@ final class BrotherHbpPrinter {
                 + " printable=" + PRINTABLE_WIDTH_PX + "x" + PRINTABLE_HEIGHT_PX
                 + " margin=" + PRINTABLE_MARGIN_PX
                 + " source=" + pageWidth + "x" + pageHeight
-                + " dither=8x8 gamma=" + MIDTONE_GAMMA);
+                + " dither=8x8 gamma=" + MIDTONE_GAMMA
+                + " density=" + density);
 
         int lineBytes = (A4_WIDTH_PX + 7) / 8;
         for (int startY = 0; startY < A4_HEIGHT_PX; startY += STRIPE_HEIGHT) {
@@ -158,7 +164,7 @@ final class BrotherHbpPrinter {
                     int b = Color.blue(argb);
                     int lum = (77 * r + 150 * g + 29 * b) >> 8;
                     if (a < 255) lum = (lum * a + 255 * (255 - a)) / 255;
-                    if (shouldPrintBlack(lum, x, globalY)) {
+                    if (shouldPrintBlack(lum, x, globalY, density)) {
                         mono[x >> 3] |= (byte)(0x80 >> (x & 7));
                     }
                 }
@@ -204,13 +210,24 @@ final class BrotherHbpPrinter {
         return matrix;
     }
 
-    private static boolean shouldPrintBlack(int luminance, int x, int y) {
-        if (luminance <= 40) return true;
+    private static boolean shouldPrintBlack(int luminance, int x, int y, int density) {
+        // Keep true black text/lines crisp. Density mainly controls photos,
+        // illustrations and anti-aliased gray regions.
+        if (luminance <= 32) return true;
         if (luminance >= 252) return false;
 
-        int adjusted = brightenLuminance(luminance);
+        int d = clampDensity(density);
+        int densityOffset = (PrintQualitySettings.DEFAULT_DENSITY - d) * 10;
+        int adjusted = brightenLuminance(luminance) + densityOffset;
+        adjusted = Math.max(0, Math.min(255, adjusted));
+
         int threshold = (BAYER_8X8[y & 7][x & 7] * 4) + 2;
         return adjusted < threshold;
+    }
+
+    private static int clampDensity(int density) {
+        return Math.max(PrintQualitySettings.MIN_DENSITY,
+                Math.min(PrintQualitySettings.MAX_DENSITY, density));
     }
 
     private static int brightenLuminance(int luminance) {
