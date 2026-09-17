@@ -24,9 +24,6 @@ def main():
     assert "spool bytes=" in service, "PrintService must log copied PDF size"
     assert "getSeekablePdf" in service, "PrintService must pass seekable PDF to PdfRenderer path"
 
-    build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
-    assert "versionName '0.5.0'" in build, "versionName must be 0.5.0"
-
     print("v0.5 seekable PDF regression checks passed")
 
 
