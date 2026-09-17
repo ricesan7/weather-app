@@ -56,7 +56,7 @@ public final class Fax2840PrintService extends PrintService {
                         .build();
 
                 PrinterInfo info = new PrinterInfo.Builder(id, "Brother FAX-2840 (USB)", PrinterInfo.STATUS_IDLE)
-                        .setDescription("USB / Brother HBP experimental")
+                        .setDescription("USB / Brother HBP experimental v0.4")
                         .setCapabilities(caps)
                         .build();
                 addPrinters(Collections.singletonList(info));
@@ -65,27 +65,42 @@ public final class Fax2840PrintService extends PrintService {
     }
 
     @Override protected void onPrintJobQueued(PrintJob printJob) {
-        if (printJob == null || printJob.isCancelled()) return;
-
-        UsbDevice device = Fax2840Usb.findAttached(this);
-        if (device == null) {
-            printJob.fail("Brother FAX-2840 がUSB接続されていません");
+        PrintDiagnostics diag = new PrintDiagnostics(this, "ANDROID PRINT SERVICE");
+        if (printJob == null) {
+            diag.add("ERROR: null PrintJob");
+            return;
+        }
+        diag.add("queued jobId=" + printJob.getId());
+        if (printJob.isCancelled()) {
+            diag.add("job already cancelled");
             return;
         }
 
+        UsbDevice device = Fax2840Usb.findAttached(this);
+        if (device == null) {
+            diag.add("ERROR: FAX-2840 not attached");
+            printJob.fail("Brother FAX-2840 がUSB接続されていません");
+            return;
+        }
+        diag.add(String.format(java.util.Locale.US, "USB %04X:%04X", device.getVendorId(), device.getProductId()));
+
         UsbManager manager = (UsbManager)getSystemService(USB_SERVICE);
         if (manager == null || !manager.hasPermission(device)) {
+            diag.add("ERROR: USB permission missing");
             printJob.fail("FAX-2840 のUSBアクセス権限がありません。アプリを開いて接続を許可してください");
             return;
         }
 
         ParcelFileDescriptor pdf = printJob.getDocument().getData();
         if (pdf == null) {
+            diag.add("ERROR: document data unavailable");
             printJob.fail("印刷データを取得できませんでした");
             return;
         }
+        diag.add("document acquired");
 
         int copies = Math.max(1, printJob.getInfo().getCopies());
+        diag.add("copies=" + copies);
         PrintJobId jobId = printJob.getId();
         AtomicBoolean cancelled = new AtomicBoolean(false);
         cancellationFlags.put(jobId, cancelled);
@@ -93,11 +108,13 @@ public final class Fax2840PrintService extends PrintService {
         if (!printJob.start()) {
             cancellationFlags.remove(jobId);
             try { pdf.close(); } catch (IOException ignored) {}
+            diag.add("ERROR: printJob.start() returned false");
             printJob.fail("印刷ジョブを開始できませんでした");
             return;
         }
+        diag.add("PrintJob state=STARTED");
 
-        new Thread(() -> runPrintJobWorker(printJob, jobId, pdf, copies, device, cancelled), "fax2840-print-job").start();
+        new Thread(() -> runPrintJobWorker(printJob, jobId, pdf, copies, device, cancelled, diag), "fax2840-print-job").start();
     }
 
     private void runPrintJobWorker(PrintJob printJob,
@@ -105,18 +122,27 @@ public final class Fax2840PrintService extends PrintService {
                                    ParcelFileDescriptor pdf,
                                    int copies,
                                    UsbDevice device,
-                                   AtomicBoolean cancelled) {
+                                   AtomicBoolean cancelled,
+                                   PrintDiagnostics diag) {
         String failure = null;
         boolean wasCancelled = false;
 
         try (ParcelFileDescriptor ignored = pdf;
              Fax2840Usb usb = Fax2840Usb.open(this, device)) {
-            BrotherHbpPrinter.printPdf(pdf, copies, usb, cancelled::get);
+            diag.add("USB opened");
+            diag.add("port(before)=" + Fax2840Usb.describePortStatus(usb.readPortStatus()));
+            long before = usb.getBytesWritten();
+            BrotherHbpPrinter.printPdf(pdf, copies, usb, cancelled::get, diag::add);
+            long after = usb.getBytesWritten();
+            diag.add("USB bytes delta=" + (after - before) + " total=" + after);
+            diag.add("port(after)=" + Fax2840Usb.describePortStatus(usb.readPortStatus()));
             wasCancelled = cancelled.get();
         } catch (CancellationException e) {
             wasCancelled = true;
+            diag.add("RESULT=CANCELLED");
         } catch (IOException | RuntimeException e) {
             failure = "FAX-2840 印刷エラー: " + safeMessage(e);
+            diag.add("RESULT=ERROR " + e.getClass().getSimpleName() + ": " + safeMessage(e));
         }
 
         final boolean finalCancelled = wasCancelled;
@@ -128,6 +154,7 @@ public final class Fax2840PrintService extends PrintService {
             } else if (finalFailure != null) {
                 printJob.fail(finalFailure);
             } else {
+                diag.add("RESULT=PRINTSERVICE_COMPLETE");
                 printJob.complete();
             }
         });
