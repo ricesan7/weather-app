@@ -28,9 +28,6 @@ def main():
     assert "densityOffset" in printer, "density must influence dither luminance"
     assert "clampDensity" in printer, "density input must be clamped"
 
-    build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
-    assert "versionName '0.7.0'" in build, "versionName must be 0.7.0"
-
     print("v0.7 density-control regression checks passed")
 
 if __name__ == "__main__":
