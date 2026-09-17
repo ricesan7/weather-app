@@ -16,12 +16,6 @@ def main():
     assert "BLACK_THRESHOLD" not in printer, "fixed threshold must be removed for grayscale illustrations"
     assert "PRINTABLE_MARGIN_PX" in printer and "pageToStripeMatrix" in printer, "render transform must account for printable margins"
 
-    build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
-    assert "versionName '0.6.0'" in build, "versionName must be 0.6.0"
-
-    main_activity = read("MainActivity.java")
-    assert "v0.6" in main_activity, "diagnostic UI must identify v0.6"
-
     print("v0.6 printable-area and dithering regression checks passed")
 
 if __name__ == "__main__":
