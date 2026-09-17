@@ -71,7 +71,7 @@ public final class MainActivity extends Activity {
         root.setGravity(Gravity.CENTER_HORIZONTAL);
 
         TextView title = new TextView(this);
-        title.setText("Brother FAX-2840 USB Print v0.4");
+        title.setText("Brother FAX-2840 USB Print v0.5");
         title.setTextSize(22f);
         root.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
