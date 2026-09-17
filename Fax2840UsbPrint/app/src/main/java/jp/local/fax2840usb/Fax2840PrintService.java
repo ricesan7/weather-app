@@ -56,7 +56,7 @@ public final class Fax2840PrintService extends PrintService {
                         .build();
 
                 PrinterInfo info = new PrinterInfo.Builder(id, "Brother FAX-2840 (USB)", PrinterInfo.STATUS_IDLE)
-                        .setDescription("USB / Brother HBP experimental v0.5")
+                        .setDescription("USB / Brother HBP experimental v0.6")
                         .setCapabilities(caps)
                         .build();
                 addPrinters(Collections.singletonList(info));
