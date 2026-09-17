@@ -56,7 +56,7 @@ public final class Fax2840PrintService extends PrintService {
                         .build();
 
                 PrinterInfo info = new PrinterInfo.Builder(id, "Brother FAX-2840 (USB)", PrinterInfo.STATUS_IDLE)
-                        .setDescription("USB / Brother HBP experimental v0.4")
+                        .setDescription("USB / Brother HBP experimental v0.5")
                         .setCapabilities(caps)
                         .build();
                 addPrinters(Collections.singletonList(info));
@@ -119,7 +119,7 @@ public final class Fax2840PrintService extends PrintService {
 
     private void runPrintJobWorker(PrintJob printJob,
                                    PrintJobId jobId,
-                                   ParcelFileDescriptor pdf,
+                                   ParcelFileDescriptor incomingPdf,
                                    int copies,
                                    UsbDevice device,
                                    AtomicBoolean cancelled,
@@ -127,16 +127,20 @@ public final class Fax2840PrintService extends PrintService {
         String failure = null;
         boolean wasCancelled = false;
 
-        try (ParcelFileDescriptor ignored = pdf;
-             Fax2840Usb usb = Fax2840Usb.open(this, device)) {
-            diag.add("USB opened");
-            diag.add("port(before)=" + Fax2840Usb.describePortStatus(usb.readPortStatus()));
-            long before = usb.getBytesWritten();
-            BrotherHbpPrinter.printPdf(pdf, copies, usb, cancelled::get, diag::add);
-            long after = usb.getBytesWritten();
-            diag.add("USB bytes delta=" + (after - before) + " total=" + after);
-            diag.add("port(after)=" + Fax2840Usb.describePortStatus(usb.readPortStatus()));
-            wasCancelled = cancelled.get();
+        try (SeekablePdfSpool spool = SeekablePdfSpool.from(this, incomingPdf)) {
+            diag.add("spool bytes=" + spool.getBytesCopied());
+            diag.add("spool seekable PDF ready");
+
+            try (Fax2840Usb usb = Fax2840Usb.open(this, device)) {
+                diag.add("USB opened");
+                diag.add("port(before)=" + Fax2840Usb.describePortStatus(usb.readPortStatus()));
+                long before = usb.getBytesWritten();
+                BrotherHbpPrinter.printPdf(spool.getSeekablePdf(), copies, usb, cancelled::get, diag::add);
+                long after = usb.getBytesWritten();
+                diag.add("USB bytes delta=" + (after - before) + " total=" + after);
+                diag.add("port(after)=" + Fax2840Usb.describePortStatus(usb.readPortStatus()));
+                wasCancelled = cancelled.get();
+            }
         } catch (CancellationException e) {
             wasCancelled = true;
             diag.add("RESULT=CANCELLED");
