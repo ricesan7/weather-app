@@ -21,9 +21,15 @@ public final class Fax2840Usb implements Closeable {
     private final UsbDeviceConnection connection;
     private final UsbInterface printerInterface;
     private final UsbEndpoint bulkOut;
+    private long bytesWritten;
+
     private Fax2840Usb(UsbDevice device, UsbDeviceConnection connection, UsbInterface printerInterface, UsbEndpoint bulkOut) {
-        this.device = device; this.connection = connection; this.printerInterface = printerInterface; this.bulkOut = bulkOut;
+        this.device = device;
+        this.connection = connection;
+        this.printerInterface = printerInterface;
+        this.bulkOut = bulkOut;
     }
+
     public static UsbDevice findAttached(Context context) {
         UsbManager manager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
         if (manager == null) return null;
@@ -31,9 +37,11 @@ public final class Fax2840Usb implements Closeable {
         for (UsbDevice d : devices) if (isCandidate(d)) return d;
         return null;
     }
+
     public static boolean isCandidate(UsbDevice device) {
         return device != null && device.getVendorId() == BROTHER_VENDOR_ID && findPrinterInterface(device) != null;
     }
+
     public static Fax2840Usb open(Context context, UsbDevice device) throws IOException {
         if (!isCandidate(device)) throw new IOException("FAX-2840 USB device not found or unsupported USB interface");
         UsbManager manager = (UsbManager) context.getSystemService(Context.USB_SERVICE);
@@ -44,9 +52,13 @@ public final class Fax2840Usb implements Closeable {
         if (intf == null || out == null) throw new IOException("Printer bulk OUT endpoint not found");
         UsbDeviceConnection conn = manager.openDevice(device);
         if (conn == null) throw new IOException("Could not open USB device");
-        if (!conn.claimInterface(intf, true)) { conn.close(); throw new IOException("Could not claim printer USB interface"); }
+        if (!conn.claimInterface(intf, true)) {
+            conn.close();
+            throw new IOException("Could not claim printer USB interface");
+        }
         return new Fax2840Usb(device, conn, intf, out);
     }
+
     private static UsbInterface findPrinterInterface(UsbDevice device) {
         for (int i = 0; i < device.getInterfaceCount(); i++) {
             UsbInterface intf = device.getInterface(i);
@@ -54,6 +66,7 @@ public final class Fax2840Usb implements Closeable {
         }
         return null;
     }
+
     private static UsbEndpoint findBulkOut(UsbInterface intf) {
         if (intf == null) return null;
         for (int i = 0; i < intf.getEndpointCount(); i++) {
@@ -62,6 +75,7 @@ public final class Fax2840Usb implements Closeable {
         }
         return null;
     }
+
     public String readIeee1284DeviceId() {
         byte[] buffer = new byte[2048];
         int interfaceNumber = printerInterface.getId() & 0xff;
@@ -75,10 +89,29 @@ public final class Fax2840Usb implements Closeable {
         if (end <= 2) return "";
         return new String(buffer, 2, end - 2, StandardCharsets.US_ASCII).trim();
     }
+
+    public int readPortStatus() {
+        byte[] status = new byte[1];
+        int interfaceNumber = printerInterface.getId() & 0xff;
+        int n = connection.controlTransfer(0xA1, 1, 0, interfaceNumber, status, 1, 1500);
+        return n == 1 ? (status[0] & 0xff) : -1;
+    }
+
+    public static String describePortStatus(int status) {
+        if (status < 0) return "unavailable";
+        boolean notError = (status & 0x08) != 0;
+        boolean selected = (status & 0x10) != 0;
+        boolean paperEmpty = (status & 0x20) != 0;
+        return String.format(java.util.Locale.US,
+                "0x%02X selected=%s paperEmpty=%s notError=%s",
+                status, selected, paperEmpty, notError);
+    }
+
     public boolean confirmsFax2840() {
         String id = readIeee1284DeviceId().toUpperCase();
         return !id.isEmpty() && (id.contains("MDL:FAX-2840") || id.contains("MDL:FAX 2840"));
     }
+
     public synchronized void write(byte[] data) throws IOException {
         int offset = 0;
         while (offset < data.length) {
@@ -86,9 +119,16 @@ public final class Fax2840Usb implements Closeable {
             int sent = connection.bulkTransfer(bulkOut, data, offset, len, 10000);
             if (sent <= 0) throw new IOException("USB bulk transfer failed at byte " + offset);
             offset += sent;
+            bytesWritten += sent;
         }
     }
-    public void writeAscii(String text) throws IOException { write(text.getBytes(StandardCharsets.US_ASCII)); }
+
+    public long getBytesWritten() { return bytesWritten; }
+
+    public void writeAscii(String text) throws IOException {
+        write(text.getBytes(StandardCharsets.US_ASCII));
+    }
+
     @Override public void close() {
         try { connection.releaseInterface(printerInterface); } catch (RuntimeException ignored) {}
         connection.close();
