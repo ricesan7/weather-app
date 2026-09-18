@@ -15,36 +15,67 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 
 final class SplitPdfGenerator {
-    private static final int A4_WIDTH_PT = 595;
-    private static final int A4_HEIGHT_PT = 842;
-    private static final int OUTPUT_WIDTH_PX = 2480;
-    private static final int OUTPUT_HEIGHT_PX = 3508;
+    private static final int A4_PORTRAIT_WIDTH_PT = 595;
+    private static final int A4_PORTRAIT_HEIGHT_PT = 842;
+    private static final int A4_LANDSCAPE_WIDTH_PT = 842;
+    private static final int A4_LANDSCAPE_HEIGHT_PT = 595;
+
+    private static final int PORTRAIT_OUTPUT_WIDTH_PX = 2480;
+    private static final int PORTRAIT_OUTPUT_HEIGHT_PX = 3508;
+    private static final int LANDSCAPE_OUTPUT_WIDTH_PX = 3508;
+    private static final int LANDSCAPE_OUTPUT_HEIGHT_PX = 2480;
+
     private static final int AUTO_SCAN_MAX_PX = 1024;
     private static final int AUTO_WHITE_THRESHOLD = 246;
     private static final int AUTO_SCAN_PADDING_PX = 6;
     private static final float AUTO_TARGET_SEGMENT_ASPECT = 3.6f;
     private static final int AUTO_MAX_COLUMNS = 4;
+    private static final float AUTO_LANDSCAPE_ASPECT = 1.12f;
 
     static final class Result {
         final File file;
         final int pageCount;
+        final int resultOrientationMode;
 
-        Result(File file, int pageCount) {
+        Result(File file, int pageCount, int resultOrientationMode) {
             this.file = file;
             this.pageCount = pageCount;
+            this.resultOrientationMode = resultOrientationMode;
         }
     }
 
     private SplitPdfGenerator() {}
 
     static Result generate(File sourcePdf, File outputPdf, int splitMode) throws IOException {
+        return generate(sourcePdf, outputPdf, splitMode, PrintOrientationSettings.DEFAULT_MODE);
+    }
+
+    static Result generate(File sourcePdf, File outputPdf, int splitMode, int orientationMode) throws IOException {
         splitMode = PageSplitSettings.normalizeMode(splitMode);
+        orientationMode = PrintOrientationSettings.normalizeMode(orientationMode);
         int outputPages = 0;
 
         PdfDocument document = new PdfDocument();
+        int resultOrientationMode = PrintOrientationSettings.MODE_PORTRAIT;
+
         try (ParcelFileDescriptor sourceFd = ParcelFileDescriptor.open(
                      sourcePdf, ParcelFileDescriptor.MODE_READ_ONLY);
              PdfRenderer renderer = new PdfRenderer(sourceFd)) {
+
+            if (renderer.getPageCount() <= 0) {
+                throw new IOException("PDF contains no printable pages");
+            }
+
+            resultOrientationMode = resolveOrientation(renderer, splitMode, orientationMode);
+
+            int pageWidthPt = resultOrientationMode == PrintOrientationSettings.MODE_LANDSCAPE
+                    ? A4_LANDSCAPE_WIDTH_PT : A4_PORTRAIT_WIDTH_PT;
+            int pageHeightPt = resultOrientationMode == PrintOrientationSettings.MODE_LANDSCAPE
+                    ? A4_LANDSCAPE_HEIGHT_PT : A4_PORTRAIT_HEIGHT_PT;
+            int outputWidthPx = resultOrientationMode == PrintOrientationSettings.MODE_LANDSCAPE
+                    ? LANDSCAPE_OUTPUT_WIDTH_PX : PORTRAIT_OUTPUT_WIDTH_PX;
+            int outputHeightPx = resultOrientationMode == PrintOrientationSettings.MODE_LANDSCAPE
+                    ? LANDSCAPE_OUTPUT_HEIGHT_PX : PORTRAIT_OUTPUT_HEIGHT_PX;
 
             for (int pageIndex = 0; pageIndex < renderer.getPageCount(); pageIndex++) {
                 try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
@@ -58,15 +89,15 @@ final class SplitPdfGenerator {
                                 ? bounds
                                 : bounds.horizontalSegment(col, columns);
 
-                        Bitmap bitmap = renderSegment(page, segment);
+                        Bitmap bitmap = renderSegment(page, segment, outputWidthPx, outputHeightPx);
                         PdfDocument.PageInfo pageInfo = new PdfDocument.PageInfo.Builder(
-                                A4_WIDTH_PT, A4_HEIGHT_PT, ++outputPages).create();
+                                pageWidthPt, pageHeightPt, ++outputPages).create();
                         PdfDocument.Page outPage = document.startPage(pageInfo);
                         Canvas canvas = outPage.getCanvas();
                         Paint paint = new Paint(Paint.FILTER_BITMAP_FLAG);
                         canvas.drawColor(Color.WHITE);
                         canvas.drawBitmap(bitmap, null,
-                                new RectF(0f, 0f, A4_WIDTH_PT, A4_HEIGHT_PT), paint);
+                                new RectF(0f, 0f, pageWidthPt, pageHeightPt), paint);
                         document.finishPage(outPage);
                         bitmap.recycle();
                     }
@@ -82,21 +113,41 @@ final class SplitPdfGenerator {
         }
 
         if (outputPages <= 0) throw new IOException("PDF contains no printable pages");
-        return new Result(outputPdf, outputPages);
+        return new Result(outputPdf, outputPages, resultOrientationMode);
     }
 
-    private static Bitmap renderSegment(PdfRenderer.Page page, ContentBounds source) {
+    private static int resolveOrientation(PdfRenderer renderer, int splitMode, int requestedMode) {
+        if (requestedMode == PrintOrientationSettings.MODE_PORTRAIT
+                || requestedMode == PrintOrientationSettings.MODE_LANDSCAPE) {
+            return requestedMode;
+        }
+
+        try (PdfRenderer.Page page = renderer.openPage(0)) {
+            ContentBounds bounds = splitMode == PageSplitSettings.MODE_FIT_PAGE
+                    ? new ContentBounds(0f, 0f, page.getWidth(), page.getHeight())
+                    : detectContentBounds(page);
+            int columns = columnsForMode(splitMode, bounds);
+            float segmentWidth = bounds.width() / Math.max(1, columns);
+            float segmentAspect = segmentWidth / Math.max(1f, bounds.height());
+            return segmentAspect >= AUTO_LANDSCAPE_ASPECT
+                    ? PrintOrientationSettings.MODE_LANDSCAPE
+                    : PrintOrientationSettings.MODE_PORTRAIT;
+        }
+    }
+
+    private static Bitmap renderSegment(PdfRenderer.Page page, ContentBounds source,
+                                        int outputWidthPx, int outputHeightPx) {
         Bitmap bitmap = Bitmap.createBitmap(
-                OUTPUT_WIDTH_PX, OUTPUT_HEIGHT_PX, Bitmap.Config.ARGB_8888);
+                outputWidthPx, outputHeightPx, Bitmap.Config.ARGB_8888);
         bitmap.eraseColor(Color.WHITE);
 
         float scale = Math.min(
-                OUTPUT_WIDTH_PX / source.width(),
-                OUTPUT_HEIGHT_PX / source.height());
+                outputWidthPx / source.width(),
+                outputHeightPx / source.height());
         float renderedWidth = source.width() * scale;
         float renderedHeight = source.height() * scale;
-        float dx = (OUTPUT_WIDTH_PX - renderedWidth) / 2f;
-        float dy = (OUTPUT_HEIGHT_PX - renderedHeight) / 2f;
+        float dx = (outputWidthPx - renderedWidth) / 2f;
+        float dy = (outputHeightPx - renderedHeight) / 2f;
 
         Matrix matrix = new Matrix();
         matrix.setValues(new float[]{
