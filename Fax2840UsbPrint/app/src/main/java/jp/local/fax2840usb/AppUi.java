@@ -1,11 +1,16 @@
 package jp.local.fax2840usb;
 
+import android.app.Activity;
 import android.content.Context;
 import android.content.res.ColorStateList;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.graphics.drawable.GradientDrawable;
+import android.os.Build;
 import android.view.View;
+import android.view.Window;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -85,6 +90,65 @@ final class AppUi {
                 dp(badge.getContext(), 12), dp(badge.getContext(), 6));
         badge.setBackground(rounded(badge.getContext(),
                 connected ? COLOR_SUCCESS : COLOR_NEUTRAL, 999, Color.TRANSPARENT, 0));
+    }
+
+
+    static void configureSystemBars(Activity activity) {
+        Window window = activity.getWindow();
+        window.setStatusBarColor(COLOR_BACKGROUND);
+        window.setNavigationBarColor(COLOR_BACKGROUND);
+
+        if (Build.VERSION.SDK_INT >= 30) {
+            WindowInsetsController controller = window.getInsetsController();
+            if (controller != null) {
+                int appearance = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
+                controller.setSystemBarsAppearance(appearance, appearance);
+            }
+        } else {
+            int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+            if (Build.VERSION.SDK_INT >= 26) {
+                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
+            }
+            window.getDecorView().setSystemUiVisibility(flags);
+        }
+    }
+
+    static void applySystemBarInsets(View view, int leftDp, int topDp, int rightDp, int bottomDp) {
+        Context context = view.getContext();
+        final int baseLeft = dp(context, leftDp);
+        final int baseTop = dp(context, topDp);
+        final int baseRight = dp(context, rightDp);
+        final int baseBottom = dp(context, bottomDp);
+
+        view.setPadding(baseLeft, baseTop, baseRight, baseBottom);
+        view.setOnApplyWindowInsetsListener((v, insets) -> {
+            int leftInset;
+            int topInset;
+            int rightInset;
+            int bottomInset;
+
+            if (Build.VERSION.SDK_INT >= 30) {
+                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
+                leftInset = bars.left;
+                topInset = bars.top;
+                rightInset = bars.right;
+                bottomInset = bars.bottom;
+            } else {
+                leftInset = insets.getSystemWindowInsetLeft();
+                topInset = insets.getSystemWindowInsetTop();
+                rightInset = insets.getSystemWindowInsetRight();
+                bottomInset = insets.getSystemWindowInsetBottom();
+            }
+
+            v.setPadding(
+                    baseLeft + leftInset,
+                    baseTop + topInset,
+                    baseRight + rightInset,
+                    baseBottom + bottomInset);
+            return insets;
+        });
+        view.requestApplyInsets();
     }
 
     static GradientDrawable rounded(Context context, int fill, int radiusDp, int stroke, int strokeDp) {
