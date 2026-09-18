@@ -96,8 +96,7 @@ public final class MainActivity extends Activity {
     }
 
     private void buildUi() {
-        getWindow().setStatusBarColor(AppUi.COLOR_BACKGROUND);
-        getWindow().setNavigationBarColor(AppUi.COLOR_BACKGROUND);
+        AppUi.configureSystemBars(this);
 
         int pad = dp(18);
         LinearLayout root = new LinearLayout(this);
@@ -113,7 +112,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.2");
+        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.2.1");
         AppUi.styleBody(subtitle);
         subtitle.setPadding(0, dp(2), 0, dp(4));
         root.addView(subtitle, new LinearLayout.LayoutParams(
@@ -364,6 +363,7 @@ public final class MainActivity extends Activity {
         page.setBackgroundColor(AppUi.COLOR_BACKGROUND);
         page.addView(root);
         setContentView(page);
+        AppUi.applySystemBarInsets(root, 18, 18, 18, 28);
     }
 
     private LinearLayout.LayoutParams buttonParams(int topMarginDp) {
