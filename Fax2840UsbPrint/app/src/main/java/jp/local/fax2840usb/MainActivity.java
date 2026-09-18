@@ -13,10 +13,13 @@ import android.os.Bundle;
 import android.provider.Settings;
 import android.view.Gravity;
 import android.view.ViewGroup;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.SeekBar;
+import android.widget.Spinner;
 import android.widget.TextView;
 import java.io.IOException;
 import java.util.Locale;
@@ -72,7 +75,7 @@ public final class MainActivity extends Activity {
         root.setGravity(Gravity.CENTER_HORIZONTAL);
 
         TextView title = new TextView(this);
-        title.setText("Brother FAX-2840 USB Print v0.8");
+        title.setText("Brother FAX-2840 USB Print v0.9");
         title.setTextSize(22f);
         root.addView(title, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
@@ -114,34 +117,32 @@ public final class MainActivity extends Activity {
         root.addView(densityHint, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView splitTitle = new TextView(this);
-        splitTitle.setText("分割拡大");
+        splitTitle.setText("ページ分割方式");
         splitTitle.setTextSize(18f);
-        splitTitle.setPadding(0,dp(8),0,0);
+        splitTitle.setPadding(0,dp(8),0,dp(4));
         root.addView(splitTitle, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView splitValue = new TextView(this);
-        splitValue.setTextSize(15f);
-        int savedZoom = PageSplitSettings.getZoomPercent(this);
-        splitValue.setText(formatSplitZoom(savedZoom));
-        root.addView(splitValue, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        Spinner splitModeSpinner = new Spinner(this);
+        ArrayAdapter<String> splitAdapter = new ArrayAdapter<>(
+                this,
+                android.R.layout.simple_spinner_item,
+                PageSplitSettings.MODE_LABELS);
+        splitAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        splitModeSpinner.setAdapter(splitAdapter);
 
-        SeekBar splitBar = new SeekBar(this);
-        splitBar.setMax(PageSplitSettings.ZOOM_LEVELS.length - 1);
-        splitBar.setProgress(PageSplitSettings.indexOfZoom(savedZoom));
-        splitBar.setOnSeekBarChangeListener(new SeekBar.OnSeekBarChangeListener() {
-            @Override public void onProgressChanged(SeekBar seekBar, int progress, boolean fromUser) {
-                int zoom = PageSplitSettings.ZOOM_LEVELS[Math.max(0,
-                        Math.min(PageSplitSettings.ZOOM_LEVELS.length - 1, progress))];
-                splitValue.setText(formatSplitZoom(zoom));
-                if (fromUser) PageSplitSettings.setZoomPercent(MainActivity.this, zoom);
+        int savedMode = PageSplitSettings.getMode(this);
+        splitModeSpinner.setSelection(PageSplitSettings.indexOfMode(savedMode));
+        splitModeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, android.view.View view, int position, long id) {
+                int safe = Math.max(0, Math.min(PageSplitSettings.MODES.length - 1, position));
+                PageSplitSettings.setMode(MainActivity.this, PageSplitSettings.MODES[safe]);
             }
-            @Override public void onStartTrackingTouch(SeekBar seekBar) {}
-            @Override public void onStopTrackingTouch(SeekBar seekBar) {}
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
-        root.addView(splitBar, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        root.addView(splitModeSpinner, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView splitHint = new TextView(this);
-        splitHint.setText("100% = 従来どおり1ページに収める\n150〜300% = 拡大して複数のA4へ自動分割\nGoogleスプレッドシートは、まず200%を試してください。");
+        splitHint.setText("自動（表向け）: 白紙余白を除外し、表だけを読みやすい枚数へ自動分割します。\n横2〜4分割: 表の実データ範囲を指定枚数に分割します。\n1ページに収める: 通常のPDF印刷です。");
         splitHint.setTextSize(13f);
         splitHint.setPadding(0,0,0,dp(12));
         root.addView(splitHint, new LinearLayout.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -289,12 +290,6 @@ public final class MainActivity extends Activity {
         int d = PrintQualitySettings.clamp(density);
         String label = d == PrintQualitySettings.DEFAULT_DENSITY ? "（標準）" : "";
         return "黒濃度: " + d + label;
-    }
-
-    private static String formatSplitZoom(int zoomPercent) {
-        int zoom = PageSplitSettings.normalizeZoom(zoomPercent);
-        String label = zoom == 100 ? "（1ページに収める）" : "（複数ページへ分割）";
-        return "分割拡大: " + zoom + "% " + label;
     }
 
     private static String safeMessage(Throwable t) {
