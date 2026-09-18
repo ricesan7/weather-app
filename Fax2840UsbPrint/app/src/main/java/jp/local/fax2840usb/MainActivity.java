@@ -113,7 +113,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.1");
+        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.2");
         AppUi.styleBody(subtitle);
         subtitle.setPadding(0, dp(2), 0, dp(4));
         root.addView(subtitle, new LinearLayout.LayoutParams(
@@ -235,6 +235,39 @@ public final class MainActivity extends Activity {
         AppUi.styleBody(splitHint);
         splitHint.setPadding(0, dp(2), 0, 0);
         settingsCard.addView(splitHint);
+
+        TextView orientationTitle = new TextView(this);
+        orientationTitle.setText("印刷向き");
+        orientationTitle.setTextColor(AppUi.COLOR_TEXT);
+        orientationTitle.setTextSize(15f);
+        orientationTitle.setPadding(0, dp(16), 0, dp(4));
+        settingsCard.addView(orientationTitle);
+
+        Spinner orientationSpinner = new Spinner(this);
+        ArrayAdapter<String> orientationAdapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, PrintOrientationSettings.MODE_LABELS);
+        orientationAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        orientationSpinner.setAdapter(orientationAdapter);
+
+        int savedOrientation = PrintOrientationSettings.getMode(this);
+        orientationSpinner.setSelection(PrintOrientationSettings.indexOfMode(savedOrientation));
+        orientationSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                int safe = Math.max(0, Math.min(
+                        PrintOrientationSettings.MODES.length - 1, position));
+                PrintOrientationSettings.setMode(
+                        MainActivity.this, PrintOrientationSettings.MODES[safe]);
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        settingsCard.addView(orientationSpinner, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView orientationHint = new TextView(this);
+        orientationHint.setText("横長の表では「横向き」を選択すると、プレビューPDF自体をA4横向きで作成します。");
+        AppUi.styleBody(orientationHint);
+        settingsCard.addView(orientationHint);
+
         AppUi.addCard(root, settingsCard);
 
         Button advancedToggle = new Button(this);
