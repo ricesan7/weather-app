@@ -41,10 +41,10 @@ final class SplitPdfGenerator {
         splitMode = PageSplitSettings.normalizeMode(splitMode);
         int outputPages = 0;
 
+        PdfDocument document = new PdfDocument();
         try (ParcelFileDescriptor sourceFd = ParcelFileDescriptor.open(
                      sourcePdf, ParcelFileDescriptor.MODE_READ_ONLY);
-             PdfRenderer renderer = new PdfRenderer(sourceFd);
-             PdfDocument document = new PdfDocument()) {
+             PdfRenderer renderer = new PdfRenderer(sourceFd)) {
 
             for (int pageIndex = 0; pageIndex < renderer.getPageCount(); pageIndex++) {
                 try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
@@ -77,6 +77,8 @@ final class SplitPdfGenerator {
                 document.writeTo(out);
                 out.flush();
             }
+        } finally {
+            document.close();
         }
 
         if (outputPages <= 0) throw new IOException("PDF contains no printable pages");
