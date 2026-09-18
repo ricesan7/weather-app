@@ -9,8 +9,6 @@ import android.graphics.drawable.GradientDrawable;
 import android.os.Build;
 import android.view.View;
 import android.view.Window;
-import android.view.WindowInsets;
-import android.view.WindowInsetsController;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.TextView;
@@ -98,20 +96,14 @@ final class AppUi {
         window.setStatusBarColor(COLOR_BACKGROUND);
         window.setNavigationBarColor(COLOR_BACKGROUND);
 
-        if (Build.VERSION.SDK_INT >= 30) {
-            WindowInsetsController controller = window.getInsetsController();
-            if (controller != null) {
-                int appearance = WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                        | WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
-                controller.setSystemBarsAppearance(appearance, appearance);
-            }
-        } else {
-            int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
-            if (Build.VERSION.SDK_INT >= 26) {
-                flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
-            }
-            window.getDecorView().setSystemUiVisibility(flags);
+        // Keep this path compatible with the app minimum API.
+        // Avoid directly referencing API 30-only WindowInsetsController classes
+        // because some older devices may fail class verification at launch.
+        int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+        if (Build.VERSION.SDK_INT >= 26) {
+            flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
         }
+        window.getDecorView().setSystemUiVisibility(flags);
     }
 
     static void applySystemBarInsets(View view, int leftDp, int topDp, int rightDp, int bottomDp) {
@@ -128,18 +120,13 @@ final class AppUi {
             int rightInset;
             int bottomInset;
 
-            if (Build.VERSION.SDK_INT >= 30) {
-                android.graphics.Insets bars = insets.getInsets(WindowInsets.Type.systemBars());
-                leftInset = bars.left;
-                topInset = bars.top;
-                rightInset = bars.right;
-                bottomInset = bars.bottom;
-            } else {
-                leftInset = insets.getSystemWindowInsetLeft();
-                topInset = insets.getSystemWindowInsetTop();
-                rightInset = insets.getSystemWindowInsetRight();
-                bottomInset = insets.getSystemWindowInsetBottom();
-            }
+            // These accessors exist on API 20+, below this app's minSdk 23.
+            // They are deprecated on new Android versions but remain suitable
+            // here and avoid API 30-only class references during Activity load.
+            leftInset = insets.getSystemWindowInsetLeft();
+            topInset = insets.getSystemWindowInsetTop();
+            rightInset = insets.getSystemWindowInsetRight();
+            bottomInset = insets.getSystemWindowInsetBottom();
 
             v.setPadding(
                     baseLeft + leftInset,
