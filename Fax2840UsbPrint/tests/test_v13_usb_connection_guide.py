@@ -23,7 +23,7 @@ def main():
         assert token in g, f"{token} missing from USB guide"
 
     main_activity = read("MainActivity.java")
-    assert "USB接続ガイド" in main_activity, "USB guide card missing"
+    assert "UsbConnectionGuide.TITLE" in main_activity, "USB guide card missing"
     assert "接続方法を見る" in main_activity, "USB guide expand button missing"
     assert "usbGuideContainer.setVisibility(View.GONE)" in main_activity, "USB guide should start collapsed"
     assert "UsbConnectionGuide.DETAILS" in main_activity, "USB guide details not wired to UI"
