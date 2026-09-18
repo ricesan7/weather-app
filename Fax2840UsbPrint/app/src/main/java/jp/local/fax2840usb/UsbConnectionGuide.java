@@ -1,6 +1,7 @@
 package jp.local.fax2840usb;
 
 final class UsbConnectionGuide {
+    static final String TITLE = "USB接続ガイド";
     static final String SUMMARY =
             "FAX-2840との接続には、ほとんどのAndroid端末でUSB OTG/USB Host対応の"
             + "変換アダプターまたは変換ケーブルが必要です。";
