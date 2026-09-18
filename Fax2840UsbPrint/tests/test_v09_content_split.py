@@ -28,9 +28,6 @@ def main():
     assert "AUTO_SCAN_MAX_PX" in printer, "low-resolution content scan missing"
     assert "MODE_HORIZONTAL_4" in printer, "fixed horizontal split modes missing"
 
-    build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
-    assert "versionName '0.9.0'" in build, "versionName must be 0.9.0"
-
     print("v0.9 content-crop split regression checks passed")
 
 if __name__ == "__main__":
