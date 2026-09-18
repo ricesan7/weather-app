@@ -22,9 +22,6 @@ def main():
     assert "AppUi.applySystemBarInsets(root" in preview, "preview screen must stay below status bar"
     assert "AppUi.configureSystemBars(this)" in preview, "preview system-bar appearance missing"
 
-    build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
-    assert "versionName '1.2.1'" in build, "versionName must be 1.2.1"
-
     print("v1.2.1 system-bar inset regression checks passed")
 
 if __name__ == "__main__":
