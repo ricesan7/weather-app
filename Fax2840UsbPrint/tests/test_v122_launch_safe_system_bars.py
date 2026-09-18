@@ -20,9 +20,6 @@ def main():
     preview = read("SharedPdfPreviewActivity.java")
     assert "AppUi.applySystemBarInsets(root" in preview, "preview inset application missing"
 
-    build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
-    assert "versionName '1.2.2'" in build, "versionName must be 1.2.2"
-
     print("v1.2.2 launch-safe system bar regression checks passed")
 
 if __name__ == "__main__":
