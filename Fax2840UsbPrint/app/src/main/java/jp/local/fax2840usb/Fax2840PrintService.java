@@ -56,7 +56,7 @@ public final class Fax2840PrintService extends PrintService {
                         .build();
 
                 PrinterInfo info = new PrinterInfo.Builder(id, "Brother FAX-2840 (USB)", PrinterInfo.STATUS_IDLE)
-                        .setDescription("USB / Brother HBP experimental v0.9")
+                        .setDescription("USB / Brother HBP experimental v1.0")
                         .setCapabilities(caps)
                         .build();
                 addPrinters(Collections.singletonList(info));
@@ -101,9 +101,17 @@ public final class Fax2840PrintService extends PrintService {
 
         int copies = Math.max(1, printJob.getInfo().getCopies());
         int density = PrintQualitySettings.getDensity(this);
-        int splitMode = PageSplitSettings.getMode(this);
+        String documentName = printJob.getDocument().getInfo() == null
+                ? ""
+                : printJob.getDocument().getInfo().getName();
+        boolean preparedPreview = documentName != null
+                && documentName.startsWith(PreparedPdfPrintAdapter.DOCUMENT_MARKER);
+        int splitMode = preparedPreview
+                ? PageSplitSettings.MODE_FIT_PAGE
+                : PageSplitSettings.getMode(this);
         diag.add("copies=" + copies);
         diag.add("density=" + density);
+        diag.add("preparedPreview=" + preparedPreview);
         diag.add("splitMode=" + splitMode + " (" + PageSplitSettings.labelForMode(splitMode) + ")");
         PrintJobId jobId = printJob.getId();
         AtomicBoolean cancelled = new AtomicBoolean(false);
