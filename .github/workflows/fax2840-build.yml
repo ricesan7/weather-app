@@ -49,6 +49,9 @@ jobs:
       - name: Regression test - v1.1 UI redesign
         run: python3 Fax2840UsbPrint/tests/test_v11_ui_redesign.py
 
+      - name: Regression test - v1.2 print orientation
+        run: python3 Fax2840UsbPrint/tests/test_v12_print_orientation.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
