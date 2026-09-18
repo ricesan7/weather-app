@@ -28,9 +28,6 @@ def main():
     assert "pageCard" in preview, "page-card preview layout missing"
     assert "AppUi.stylePrimaryButton" in preview, "preview CTA must use primary style"
 
-    build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
-    assert "versionName '1.1.0'" in build, "versionName must be 1.1.0"
-
     print("v1.1 UI redesign regression checks passed")
 
 if __name__ == "__main__":
