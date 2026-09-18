@@ -55,6 +55,9 @@ jobs:
       - name: Regression test - v1.2.1 system bar insets
         run: python3 Fax2840UsbPrint/tests/test_v121_system_bar_insets.py
 
+      - name: Regression test - v1.2.2 launch-safe system bars
+        run: python3 Fax2840UsbPrint/tests/test_v122_launch_safe_system_bars.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
