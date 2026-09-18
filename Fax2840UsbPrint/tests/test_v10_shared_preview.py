@@ -33,7 +33,7 @@ def main():
     assert "onLayout" in a and "onWrite" in a, "PrintDocumentAdapter implementation incomplete"
 
     service = read("Fax2840PrintService.java")
-    assert "FAX2840_PREVIEW_READY" in service, "PrintService must recognize already-split PDFs"
+    assert "PreparedPdfPrintAdapter.DOCUMENT_MARKER" in service, "PrintService must recognize already-split PDFs"
     assert "preparedPreview" in service and "MODE_FIT_PAGE" in service, "prepared PDFs must bypass re-splitting"
 
     build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
