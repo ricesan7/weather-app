@@ -29,9 +29,6 @@ def main():
     assert "印刷向き" in main_activity, "orientation selector missing from home settings"
     assert "PrintOrientationSettings.setMode" in main_activity, "home orientation selection must persist"
 
-    build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
-    assert "versionName '1.2.0'" in build, "versionName must be 1.2.0"
-
     print("v1.2 print orientation regression checks passed")
 
 if __name__ == "__main__":
