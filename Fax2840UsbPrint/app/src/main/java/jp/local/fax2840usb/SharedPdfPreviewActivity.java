@@ -56,8 +56,7 @@ public final class SharedPdfPreviewActivity extends Activity {
     }
 
     private void buildUi() {
-        getWindow().setStatusBarColor(AppUi.COLOR_BACKGROUND);
-        getWindow().setNavigationBarColor(AppUi.COLOR_BACKGROUND);
+        AppUi.configureSystemBars(this);
 
         int pad = dp(16);
         LinearLayout root = new LinearLayout(this);
@@ -185,6 +184,7 @@ public final class SharedPdfPreviewActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         setContentView(root);
+        AppUi.applySystemBarInsets(root, 16, 16, 16, 16);
     }
 
     private void copyIncomingAndPrepare(Uri uri) {
