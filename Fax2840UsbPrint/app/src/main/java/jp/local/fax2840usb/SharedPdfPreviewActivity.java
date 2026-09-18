@@ -39,6 +39,7 @@ public final class SharedPdfPreviewActivity extends Activity {
     private File sourcePdf;
     private File preparedPdf;
     private int preparedPageCount;
+    private int preparedOrientationMode = PrintOrientationSettings.MODE_PORTRAIT;
     private final AtomicInteger generation = new AtomicInteger();
 
     @Override protected void onCreate(Bundle savedInstanceState) {
@@ -95,9 +96,9 @@ public final class SharedPdfPreviewActivity extends Activity {
         modeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 int safe = Math.max(0, Math.min(PageSplitSettings.MODES.length - 1, position));
-                int mode = PageSplitSettings.MODES[safe];
-                PageSplitSettings.setMode(SharedPdfPreviewActivity.this, mode);
-                if (sourcePdf != null) regenerate(mode);
+                PageSplitSettings.setMode(SharedPdfPreviewActivity.this,
+                        PageSplitSettings.MODES[safe]);
+                if (sourcePdf != null) regenerate();
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
@@ -105,6 +106,38 @@ public final class SharedPdfPreviewActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
         spinnerParams.topMargin = dp(6);
         settingsCard.addView(modeSpinner, spinnerParams);
+
+        TextView orientationTitle = new TextView(this);
+        orientationTitle.setText("印刷向き");
+        orientationTitle.setTextColor(AppUi.COLOR_TEXT);
+        orientationTitle.setTextSize(15f);
+        orientationTitle.setPadding(0, dp(14), 0, dp(4));
+        settingsCard.addView(orientationTitle);
+
+        Spinner orientationSpinner = new Spinner(this);
+        ArrayAdapter<String> orientationAdapter = new ArrayAdapter<>(
+                this, android.R.layout.simple_spinner_item, PrintOrientationSettings.MODE_LABELS);
+        orientationAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
+        orientationSpinner.setAdapter(orientationAdapter);
+        orientationSpinner.setSelection(PrintOrientationSettings.indexOfMode(
+                PrintOrientationSettings.getMode(this)));
+        orientationSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
+            @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
+                int safe = Math.max(0, Math.min(
+                        PrintOrientationSettings.MODES.length - 1, position));
+                PrintOrientationSettings.setMode(SharedPdfPreviewActivity.this,
+                        PrintOrientationSettings.MODES[safe]);
+                if (sourcePdf != null) regenerate();
+            }
+            @Override public void onNothingSelected(AdapterView<?> parent) {}
+        });
+        settingsCard.addView(orientationSpinner, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        TextView orientationHint = new TextView(this);
+        orientationHint.setText("横長の表は「横向き」を選ぶと、横向きA4として先にPDFを作成します。");
+        AppUi.styleBody(orientationHint);
+        settingsCard.addView(orientationHint);
 
         status = new TextView(this);
         status.setText("PDFを読み込み中…");
@@ -136,7 +169,7 @@ public final class SharedPdfPreviewActivity extends Activity {
         root.addView(previewScroll, previewParams);
 
         TextView printHint = new TextView(this);
-        printHint.setText("確認後、Androidの印刷画面でFAX-2840を選択します。");
+        printHint.setText("印刷向きはAndroidの印刷画面にも引き継ぎます。必要なら同じ向きになっていることを確認してください。");
         AppUi.styleBody(printHint);
         printHint.setGravity(Gravity.CENTER);
         printHint.setPadding(0, dp(4), 0, dp(6));
@@ -174,7 +207,7 @@ public final class SharedPdfPreviewActivity extends Activity {
                     out.flush();
                 }
                 sourcePdf = source;
-                regenerate(PageSplitSettings.getMode(this));
+                regenerate();
             } catch (IOException | RuntimeException e) {
                 runOnUiThread(() -> {
                     status.setText("PDF読み込みエラー: " + safeMessage(e));
@@ -184,11 +217,14 @@ public final class SharedPdfPreviewActivity extends Activity {
         }, "fax2840-shared-copy").start();
     }
 
-    private void regenerate(int mode) {
+    private void regenerate() {
         File source = sourcePdf;
         if (source == null) return;
 
+        int splitMode = PageSplitSettings.getMode(this);
+        int orientationMode = PrintOrientationSettings.getMode(this);
         int token = generation.incrementAndGet();
+
         runOnUiThread(() -> {
             status.setText("分割プレビューを作成中…");
             printButton.setEnabled(false);
@@ -200,11 +236,12 @@ public final class SharedPdfPreviewActivity extends Activity {
                 File dir = source.getParentFile();
                 File output = new File(dir, "prepared-" + token + ".pdf");
                 SplitPdfGenerator.Result result =
-                        SplitPdfGenerator.generate(source, output, mode);
+                        SplitPdfGenerator.generate(source, output, splitMode, orientationMode);
                 if (token != generation.get()) return;
 
                 preparedPdf = result.file;
                 preparedPageCount = result.pageCount;
+                preparedOrientationMode = result.resultOrientationMode;
                 renderPreparedPreview(result.file, result.pageCount, token);
             } catch (IOException | RuntimeException e) {
                 if (token != generation.get()) return;
@@ -269,7 +306,9 @@ public final class SharedPdfPreviewActivity extends Activity {
             }
 
             preparedPageCount = expectedPages;
-            status.setText("分割完了: " + expectedPages + "ページ");
+            String orientationLabel = preparedOrientationMode == PrintOrientationSettings.MODE_LANDSCAPE
+                    ? "横向き" : "縦向き";
+            status.setText("分割完了: " + expectedPages + "ページ / " + orientationLabel);
             printButton.setEnabled(preparedPdf != null && preparedPdf.exists());
         });
     }
@@ -287,8 +326,13 @@ public final class SharedPdfPreviewActivity extends Activity {
             return;
         }
 
+        PrintAttributes.MediaSize mediaSize =
+                preparedOrientationMode == PrintOrientationSettings.MODE_LANDSCAPE
+                        ? PrintAttributes.MediaSize.ISO_A4.asLandscape()
+                        : PrintAttributes.MediaSize.ISO_A4.asPortrait();
+
         PrintAttributes attrs = new PrintAttributes.Builder()
-                .setMediaSize(PrintAttributes.MediaSize.ISO_A4)
+                .setMediaSize(mediaSize)
                 .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
                 .build();
 
