@@ -46,6 +46,9 @@ jobs:
       - name: Regression test - v1.0 shared PDF preview
         run: python3 Fax2840UsbPrint/tests/test_v10_shared_preview.py
 
+      - name: Regression test - v1.1 UI redesign
+        run: python3 Fax2840UsbPrint/tests/test_v11_ui_redesign.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
