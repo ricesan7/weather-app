@@ -112,7 +112,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.2.2");
+        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.3.0");
         AppUi.styleBody(subtitle);
         subtitle.setPadding(0, dp(2), 0, dp(4));
         root.addView(subtitle, new LinearLayout.LayoutParams(
@@ -142,6 +142,49 @@ public final class MainActivity extends Activity {
         connectionCard.addView(status, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         AppUi.addCard(root, connectionCard);
+
+        LinearLayout usbGuideCard = AppUi.card(this);
+
+        TextView usbGuideTitle = new TextView(this);
+        usbGuideTitle.setText("USB接続ガイド");
+        AppUi.styleSectionTitle(usbGuideTitle);
+        usbGuideCard.addView(usbGuideTitle);
+
+        TextView usbGuideSummary = new TextView(this);
+        usbGuideSummary.setText(UsbConnectionGuide.SUMMARY);
+        AppUi.styleBody(usbGuideSummary);
+        usbGuideSummary.setPadding(0, dp(6), 0, dp(8));
+        usbGuideCard.addView(usbGuideSummary);
+
+        Button usbGuideToggle = new Button(this);
+        usbGuideToggle.setText("接続方法を見る");
+        AppUi.styleSecondaryButton(usbGuideToggle);
+        usbGuideCard.addView(usbGuideToggle, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout usbGuideContainer = new LinearLayout(this);
+        usbGuideContainer.setOrientation(LinearLayout.VERTICAL);
+        usbGuideContainer.setVisibility(View.GONE);
+
+        TextView usbGuideText = new TextView(this);
+        usbGuideText.setText(UsbConnectionGuide.DETAILS);
+        usbGuideText.setTextColor(AppUi.COLOR_TEXT);
+        usbGuideText.setTextSize(14f);
+        usbGuideText.setLineSpacing(0f, 1.2f);
+        usbGuideText.setPadding(0, dp(12), 0, 0);
+        usbGuideContainer.addView(usbGuideText, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        usbGuideCard.addView(usbGuideContainer, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        usbGuideToggle.setOnClickListener(v -> {
+            boolean open = usbGuideContainer.getVisibility() == View.VISIBLE;
+            usbGuideContainer.setVisibility(open ? View.GONE : View.VISIBLE);
+            usbGuideToggle.setText(open ? "接続方法を見る" : "接続ガイドを閉じる");
+        });
+
+        AppUi.addCard(root, usbGuideCard);
 
         LinearLayout actionCard = AppUi.card(this);
 
