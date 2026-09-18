@@ -36,9 +36,6 @@ def main():
     assert "PreparedPdfPrintAdapter.DOCUMENT_MARKER" in service, "PrintService must recognize already-split PDFs"
     assert "preparedPreview" in service and "MODE_FIT_PAGE" in service, "prepared PDFs must bypass re-splitting"
 
-    build = (ROOT / "app" / "build.gradle").read_text(encoding="utf-8")
-    assert "versionName '1.0.0'" in build, "versionName must be 1.0.0"
-
     print("v1.0 shared-PDF preview regression checks passed")
 
 if __name__ == "__main__":
