@@ -97,8 +97,7 @@ final class AppUi {
         window.setNavigationBarColor(COLOR_BACKGROUND);
 
         // Keep this path compatible with the app minimum API.
-        // Avoid directly referencing API 30-only WindowInsetsController classes
-        // because some older devices may fail class verification at launch.
+        // Avoid newer system-bar controller classes so older devices can load this class safely.
         int flags = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
         if (Build.VERSION.SDK_INT >= 26) {
             flags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
@@ -122,7 +121,7 @@ final class AppUi {
 
             // These accessors exist on API 20+, below this app's minSdk 23.
             // They are deprecated on new Android versions but remain suitable
-            // here and avoid API 30-only class references during Activity load.
+            // here and avoid newer class references during Activity load.
             leftInset = insets.getSystemWindowInsetLeft();
             topInset = insets.getSystemWindowInsetTop();
             rightInset = insets.getSystemWindowInsetRight();
