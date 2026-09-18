@@ -146,7 +146,7 @@ public final class MainActivity extends Activity {
         LinearLayout usbGuideCard = AppUi.card(this);
 
         TextView usbGuideTitle = new TextView(this);
-        usbGuideTitle.setText("USB接続ガイド");
+        usbGuideTitle.setText(UsbConnectionGuide.TITLE);
         AppUi.styleSectionTitle(usbGuideTitle);
         usbGuideCard.addView(usbGuideTitle);
 
