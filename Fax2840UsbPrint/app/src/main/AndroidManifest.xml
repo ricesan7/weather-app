@@ -7,6 +7,13 @@
             <intent-filter><action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"/></intent-filter>
             <meta-data android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" android:resource="@xml/device_filter"/>
         </activity>
+        <activity android:name=".SharedPdfPreviewActivity" android:exported="true" android:label="FAX-2840 分割プレビュー">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND"/>
+                <category android:name="android.intent.category.DEFAULT"/>
+                <data android:mimeType="application/pdf"/>
+            </intent-filter>
+        </activity>
         <service android:name=".Fax2840PrintService" android:exported="true" android:permission="android.permission.BIND_PRINT_SERVICE">
             <intent-filter><action android:name="android.printservice.PrintService"/></intent-filter>
             <meta-data android:name="android.printservice" android:resource="@xml/printservice"/>
