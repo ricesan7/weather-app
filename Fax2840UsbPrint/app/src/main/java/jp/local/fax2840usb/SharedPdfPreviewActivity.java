@@ -55,30 +55,35 @@ public final class SharedPdfPreviewActivity extends Activity {
     }
 
     private void buildUi() {
+        getWindow().setStatusBarColor(AppUi.COLOR_BACKGROUND);
+        getWindow().setNavigationBarColor(AppUi.COLOR_BACKGROUND);
+
         int pad = dp(16);
         LinearLayout root = new LinearLayout(this);
         root.setOrientation(LinearLayout.VERTICAL);
-        root.setPadding(pad, pad, pad, pad);
+        root.setPadding(pad, dp(16), pad, dp(16));
         root.setGravity(Gravity.CENTER_HORIZONTAL);
+        root.setBackgroundColor(AppUi.COLOR_BACKGROUND);
 
         TextView title = new TextView(this);
-        title.setText("FAX-2840 分割プレビュー v1.0");
-        title.setTextSize(22f);
+        title.setText("分割プレビュー");
+        AppUi.styleTitle(title);
         root.addView(title, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        status = new TextView(this);
-        status.setText("PDFを読み込み中…");
-        status.setTextSize(15f);
-        status.setPadding(0, dp(12), 0, dp(8));
-        root.addView(status, new LinearLayout.LayoutParams(
+        TextView subtitle = new TextView(this);
+        subtitle.setText("実際に印刷されるA4ページを確認してください");
+        AppUi.styleBody(subtitle);
+        subtitle.setPadding(0, dp(2), 0, dp(4));
+        root.addView(subtitle, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+        LinearLayout settingsCard = AppUi.card(this);
 
         TextView modeTitle = new TextView(this);
         modeTitle.setText("ページ分割方式");
-        modeTitle.setTextSize(17f);
-        root.addView(modeTitle, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        AppUi.styleSectionTitle(modeTitle);
+        settingsCard.addView(modeTitle);
 
         Spinner modeSpinner = new Spinner(this);
         ArrayAdapter<String> modeAdapter = new ArrayAdapter<>(
@@ -96,35 +101,51 @@ public final class SharedPdfPreviewActivity extends Activity {
             }
             @Override public void onNothingSelected(AdapterView<?> parent) {}
         });
-        root.addView(modeSpinner, new LinearLayout.LayoutParams(
+        LinearLayout.LayoutParams spinnerParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        spinnerParams.topMargin = dp(6);
+        settingsCard.addView(modeSpinner, spinnerParams);
+
+        status = new TextView(this);
+        status.setText("PDFを読み込み中…");
+        AppUi.styleBody(status);
+        status.setPadding(0, dp(8), 0, 0);
+        settingsCard.addView(status, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
-        TextView help = new TextView(this);
-        help.setText("Googleスプレッドシートから受け取ったPDFを先に分割し、実際に印刷されるページをここで確認します。");
-        help.setTextSize(13f);
-        help.setPadding(0, dp(4), 0, dp(10));
-        root.addView(help, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        AppUi.addCard(root, settingsCard);
 
         TextView previewTitle = new TextView(this);
-        previewTitle.setText("分割プレビュー");
-        previewTitle.setTextSize(18f);
-        root.addView(previewTitle, new LinearLayout.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+        previewTitle.setText("印刷ページ");
+        AppUi.styleSectionTitle(previewTitle);
+        LinearLayout.LayoutParams previewTitleParams = new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT);
+        previewTitleParams.topMargin = dp(16);
+        root.addView(previewTitle, previewTitleParams);
 
         previewContainer = new LinearLayout(this);
         previewContainer.setOrientation(LinearLayout.VERTICAL);
-        previewContainer.setPadding(0, dp(8), 0, dp(8));
+        previewContainer.setPadding(0, dp(2), 0, dp(10));
 
         ScrollView previewScroll = new ScrollView(this);
+        previewScroll.setFillViewport(true);
         previewScroll.addView(previewContainer, new ScrollView.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, 0, 1f);
         root.addView(previewScroll, previewParams);
 
+        TextView printHint = new TextView(this);
+        printHint.setText("確認後、Androidの印刷画面でFAX-2840を選択します。");
+        AppUi.styleBody(printHint);
+        printHint.setGravity(Gravity.CENTER);
+        printHint.setPadding(0, dp(4), 0, dp(6));
+        root.addView(printHint, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         printButton = new Button(this);
-        printButton.setText("Android印刷プレビューへ");
+        printButton.setText("印刷へ進む");
+        AppUi.stylePrimaryButton(printButton);
         printButton.setEnabled(false);
         printButton.setOnClickListener(v -> openAndroidPrintPreview());
         root.addView(printButton, new LinearLayout.LayoutParams(
@@ -135,7 +156,7 @@ public final class SharedPdfPreviewActivity extends Activity {
 
     private void copyIncomingAndPrepare(Uri uri) {
         printButton.setEnabled(false);
-        status.setText("GoogleスプレッドシートのPDFを読み込み中…");
+        status.setText("PDFを読み込み中…");
 
         new Thread(() -> {
             try {
@@ -224,23 +245,31 @@ public final class SharedPdfPreviewActivity extends Activity {
 
         runOnUiThread(() -> {
             previewContainer.removeAllViews();
+
             for (int i = 0; i < thumbnails.size(); i++) {
+                LinearLayout pageCard = AppUi.card(this);
+
                 TextView pageLabel = new TextView(this);
-                pageLabel.setText((i + 1) + " / " + thumbnails.size());
+                pageLabel.setText("ページ " + (i + 1) + " / " + thumbnails.size());
+                pageLabel.setTextColor(AppUi.COLOR_TEXT);
                 pageLabel.setTextSize(15f);
-                pageLabel.setPadding(0, dp(8), 0, dp(4));
-                previewContainer.addView(pageLabel);
+                pageLabel.setPadding(0, 0, 0, dp(8));
+                pageCard.addView(pageLabel, new LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
                 ImageView image = new ImageView(this);
                 image.setImageBitmap(thumbnails.get(i));
                 image.setAdjustViewBounds(true);
-                image.setBackgroundColor(Color.LTGRAY);
-                previewContainer.addView(image, new LinearLayout.LayoutParams(
+                image.setBackground(AppUi.rounded(this,
+                        Color.WHITE, 8, AppUi.COLOR_BORDER, 1));
+                pageCard.addView(image, new LinearLayout.LayoutParams(
                         ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
+                AppUi.addCard(previewContainer, pageCard);
             }
 
             preparedPageCount = expectedPages;
-            status.setText("分割完了: " + expectedPages + "ページ。内容を確認してから印刷してください。");
+            status.setText("分割完了: " + expectedPages + "ページ");
             printButton.setEnabled(preparedPdf != null && preparedPdf.exists());
         });
     }
@@ -288,6 +317,6 @@ public final class SharedPdfPreviewActivity extends Activity {
     }
 
     private int dp(int value) {
-        return Math.round(value * getResources().getDisplayMetrics().density);
+        return AppUi.dp(this, value);
     }
 }
