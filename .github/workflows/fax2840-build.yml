@@ -52,6 +52,9 @@ jobs:
       - name: Regression test - v1.2 print orientation
         run: python3 Fax2840UsbPrint/tests/test_v12_print_orientation.py
 
+      - name: Regression test - v1.2.1 system bar insets
+        run: python3 Fax2840UsbPrint/tests/test_v121_system_bar_insets.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
