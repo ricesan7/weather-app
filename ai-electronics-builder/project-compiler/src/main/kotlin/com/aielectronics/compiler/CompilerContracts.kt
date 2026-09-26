@@ -32,6 +32,14 @@ interface ComponentResolver {
     fun resolve(capabilities: CapabilitySet, requirements: ResolvedRequirements): Result<ResolvedComponents>
 }
 
+interface BoardSelector {
+    fun select(
+        capabilities: CapabilitySet,
+        components: ResolvedComponents,
+        requirements: ResolvedRequirements,
+    ): Result<BoardSelection>
+}
+
 interface PowerPlanner {
     fun plan(components: ResolvedComponents, requirements: ResolvedRequirements): Result<PowerPlan>
 }
@@ -57,12 +65,24 @@ interface BehaviorCompiler {
     fun compile(requirements: ResolvedRequirements, capabilities: CapabilitySet): Result<BehaviorGraph>
 }
 
+interface DesignCoreAssembler {
+    fun assemble(
+        requirements: ResolvedRequirements,
+        capabilities: CapabilitySet,
+        board: BoardSelection,
+        components: ResolvedComponents,
+        circuitGraph: CircuitGraph,
+        behavior: BehaviorGraph,
+        validation: ValidationReport,
+    ): Result<DesignCore>
+}
+
 interface ManifestCompiler {
-    fun compile(ir: DesignIr): Result<ProjectManifest>
+    fun compile(core: DesignCore): Result<ProjectManifest>
 }
 
 interface UiCompiler {
-    fun compile(ir: DesignIr): Result<UiSpec>
+    fun compile(core: DesignCore): Result<UiSpec>
 }
 
 interface DiagramCompiler {
@@ -70,5 +90,5 @@ interface DiagramCompiler {
 }
 
 interface DiagnosticCompiler {
-    fun compile(ir: DesignIr): Result<TestPlan>
+    fun compile(core: DesignCore): Result<DiagnosticBundle>
 }
