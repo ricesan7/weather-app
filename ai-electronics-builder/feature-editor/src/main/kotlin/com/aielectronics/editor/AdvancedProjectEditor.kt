@@ -1,6 +1,6 @@
 package com.aielectronics.editor
 
-import androidx.compose.foundation.BasicTextField
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -77,7 +77,7 @@ fun AdvancedProjectEditor(
             OutlinedButton(onClick = onBack) {
                 Text("戻る")
             }
-            Column(modifier = Modifier.weight(1f)) {
+            Column(modifier = Modifier.fillMaxWidth(0.55f)) {
                 Text(
                     "上級者モード",
                     style = MaterialTheme.typography.titleLarge,
@@ -277,14 +277,14 @@ private fun EditPane(
                     value = state.searchText,
                     onValueChange = onSearch,
                     label = { Text("検索") },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(0.48f),
                     singleLine = true,
                 )
                 OutlinedTextField(
                     value = state.replaceText,
                     onValueChange = onReplacement,
                     label = { Text("置換") },
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier.fillMaxWidth(0.48f),
                     singleLine = true,
                 )
             }
@@ -308,7 +308,7 @@ private fun EditPane(
             tonalElevation = 1.dp,
             modifier = Modifier
                 .fillMaxWidth()
-                .weight(1f),
+                .heightIn(min = 360.dp, max = 560.dp),
         ) {
             BasicTextField(
                 value = file.workingContent,

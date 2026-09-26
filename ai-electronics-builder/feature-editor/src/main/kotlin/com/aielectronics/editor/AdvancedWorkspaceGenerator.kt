@@ -102,15 +102,14 @@ $settings
             val name = setting.id
                 .uppercase()
                 .replace(Regex("[^A-Z0-9_]"), "_")
-            "#define AIE_SETTING_" + name + " \"" +
-                setting.defaultValue.replace(""", "\\"") + "\""
+            "#define AIE_SETTING_" + name + " " + quoted(setting.defaultValue)
         }
 
         return """
 #pragma once
 
-#define AIE_PROJECT_ID "${bundle.designIr.project.id}"
-#define AIE_BOARD_ID "${bundle.designIr.board.boardId}"
+#define AIE_PROJECT_ID ${quoted(bundle.designIr.project.id)}
+#define AIE_BOARD_ID ${quoted(bundle.designIr.board.boardId)}
 
 $settings
 """.trim()
@@ -151,6 +150,9 @@ The original generated baseline is immutable inside the editor. Use Diff before 
 
 Changing code or manifest does not automatically make a hardware change safe. Pin/power/component changes must be revalidated before deployment.
 """.trim()
+
+    private fun quoted(value: String): String =
+        "\"" + value.replace("\"", "\\\"") + "\""
 
     private fun raw(expression: Expression): String = when (expression) {
         is Expression.Raw -> expression.expression
