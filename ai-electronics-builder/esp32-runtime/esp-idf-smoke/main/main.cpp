@@ -39,6 +39,8 @@ aie::RuntimeCore runtime(
     hardware,
     std::set<std::string>{
         "drv_sht31",
+        "drv_lps22_i2c",
+        "drv_vcnl4030_i2c",
         "drv_gpio_sink",
     }
 );
