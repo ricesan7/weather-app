@@ -12,7 +12,7 @@ class DefaultProjectCompilerTest {
         var behaviorCalled = false
 
         val compiler = compiler(
-            validator = validator {
+            validator = makeValidator {
                 ValidationReport(
                     state = ValidationState.BLOCKED,
                     issues = listOf(
@@ -61,7 +61,7 @@ class DefaultProjectCompilerTest {
     )
 
     private fun compiler(
-        validator: ElectricalValidator = validator {
+        validator: ElectricalValidator = makeValidator {
             ValidationReport(ValidationState.PASS, emptyList())
         },
         behavior: BehaviorCompiler = object : BehaviorCompiler {
@@ -161,7 +161,7 @@ class DefaultProjectCompilerTest {
         )
     }
 
-    private fun validator(block: (CircuitGraph) -> ValidationReport) =
+    private fun makeValidator(block: (CircuitGraph) -> ValidationReport) =
         object : ElectricalValidator {
             override fun validate(graph: CircuitGraph): ValidationReport = block(graph)
         }
