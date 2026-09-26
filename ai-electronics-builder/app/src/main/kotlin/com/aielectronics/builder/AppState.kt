@@ -28,4 +28,5 @@ data class BuilderAppState(
     val deployProgress: Int = 0,
     val deployMessage: String = "",
     val deployed: Boolean = false,
+    val buildTargetStepOrder: Int? = null,
 )

@@ -1,5 +1,7 @@
 package com.aielectronics.control
 
+import com.aielectronics.diagnostics.DiagnosticFinding
+
 enum class DeviceConnectionState {
     CONNECTED,
     DISCONNECTED,
@@ -24,6 +26,7 @@ data class ControlDashboardState(
     val settings: Map<String, String> = emptyMap(),
     val history: Map<String, List<ChartSample>> = emptyMap(),
     val testResults: Map<String, TestRunState> = emptyMap(),
+    val diagnosticFindings: Map<String, DiagnosticFinding> = emptyMap(),
     val pendingSettingIds: Set<String> = emptySet(),
     val refreshing: Boolean = false,
     val lastError: String? = null,

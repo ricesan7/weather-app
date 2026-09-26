@@ -38,6 +38,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aielectronics.core.model.DiagnosticSpec
+import com.aielectronics.core.model.DiagramSpec
 import com.aielectronics.core.model.TestSpec
 import com.aielectronics.core.model.UiPage
 import com.aielectronics.core.model.UiSpec
@@ -51,13 +53,18 @@ fun RuntimeControlDashboard(
     transport: RuntimeTransport,
     uiSpec: UiSpec,
     tests: List<TestSpec>,
+    diagnostics: List<DiagnosticSpec> = emptyList(),
+    diagramSpec: DiagramSpec? = null,
+    onOpenBuildStep: (Int) -> Unit = {},
     modifier: Modifier = Modifier,
 ) {
-    val factory = remember(transport, uiSpec, tests) {
+    val factory = remember(transport, uiSpec, tests, diagnostics, diagramSpec) {
         RuntimeDashboardViewModel.Factory(
             transport = transport,
             uiSpec = uiSpec,
             tests = tests,
+            diagnostics = diagnostics,
+            diagramSpec = diagramSpec,
         )
     }
     val dashboardViewModel: RuntimeDashboardViewModel = viewModel(
@@ -73,6 +80,7 @@ fun RuntimeControlDashboard(
         onRefresh = dashboardViewModel::refresh,
         onSetSetting = dashboardViewModel::setSetting,
         onRunTest = dashboardViewModel::runTest,
+        onOpenBuildStep = onOpenBuildStep,
         onDismissError = dashboardViewModel::clearError,
         modifier = modifier,
     )
@@ -86,6 +94,7 @@ fun DynamicControlDashboard(
     onRefresh: () -> Unit,
     onSetSetting: (String, String) -> Unit,
     onRunTest: (String) -> Unit,
+    onOpenBuildStep: (Int) -> Unit = {},
     onDismissError: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -127,6 +136,7 @@ fun DynamicControlDashboard(
                 state = state,
                 onSetSetting = onSetSetting,
                 onRunTest = onRunTest,
+                onOpenBuildStep = onOpenBuildStep,
             )
         }
     }
@@ -227,6 +237,7 @@ private fun PageContent(
     state: ControlDashboardState,
     onSetSetting: (String, String) -> Unit,
     onRunTest: (String) -> Unit,
+    onOpenBuildStep: (Int) -> Unit,
 ) {
     LazyColumn(
         verticalArrangement = Arrangement.spacedBy(12.dp),
@@ -240,6 +251,7 @@ private fun PageContent(
                 state = state,
                 onSetSetting = onSetSetting,
                 onRunTest = onRunTest,
+                onOpenBuildStep = onOpenBuildStep,
             )
         }
     }
@@ -251,6 +263,7 @@ private fun WidgetRenderer(
     state: ControlDashboardState,
     onSetSetting: (String, String) -> Unit,
     onRunTest: (String) -> Unit,
+    onOpenBuildStep: (Int) -> Unit,
 ) {
     when (widget) {
         is UiWidget.ValueCard -> ValueCardWidget(widget, state)
@@ -259,7 +272,7 @@ private fun WidgetRenderer(
         is UiWidget.Toggle -> ToggleWidget(widget, state, onSetSetting)
         is UiWidget.Slider -> SliderWidget(widget, state, onSetSetting)
         is UiWidget.Select -> SelectWidget(widget, state, onSetSetting)
-        is UiWidget.Button -> ActionButtonWidget(widget, state, onRunTest)
+        is UiWidget.Button -> ActionButtonWidget(widget, state, onRunTest, onOpenBuildStep)
         is UiWidget.Status -> StatusWidget(widget, state)
         is UiWidget.Alarm -> AlarmWidget(widget, state)
     }
@@ -504,10 +517,12 @@ private fun ActionButtonWidget(
     widget: UiWidget.Button,
     state: ControlDashboardState,
     onRunTest: (String) -> Unit,
+    onOpenBuildStep: (Int) -> Unit,
 ) {
     val testId = widget.binding
         .takeIf { it.startsWith("tests.") }
         ?.removePrefix("tests.")
+    val finding = testId?.let(state.diagnosticFindings::get)
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Column(
@@ -538,10 +553,27 @@ private fun ActionButtonWidget(
                     }
                 )
             }
+
+            finding?.let { diagnostic ->
+                Text(
+                    diagnostic.title,
+                    style = MaterialTheme.typography.titleMedium,
+                )
+                diagnostic.likelyCauses.forEach { cause ->
+                    Text("・" + cause)
+                }
+                diagnostic.steps.forEach { step ->
+                    OutlinedButton(
+                        onClick = { onOpenBuildStep(step.order) },
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text("配線 " + step.order + " を確認")
+                    }
+                }
+            }
         }
     }
 }
-
 @Composable
 private fun StatusWidget(
     widget: UiWidget.Status,

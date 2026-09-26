@@ -75,6 +75,24 @@ class BuilderAppViewModel(
         recordFriction { recordGuidedBuildConfirmation(connectionId) }
     }
 
+    fun openBuildStep(order: Int) {
+        val from = _state.value.screen
+        recordFriction {
+            recordScreenTransition(
+                from = from.name,
+                to = AppScreen.BUILD.name,
+                userInitiated = true,
+            )
+        }
+        _state.update {
+            it.copy(
+                screen = AppScreen.BUILD,
+                buildTargetStepOrder = order,
+                error = null,
+            )
+        }
+    }
+
     fun connect(context: Context) {
         if (_state.value.busy) return
 

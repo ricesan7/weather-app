@@ -28,6 +28,7 @@ kotlin {
 
 dependencies {
     implementation(project(":core-model"))
+    api(project(":diagnostics"))
     implementation(project(":runtime-protocol"))
 
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
