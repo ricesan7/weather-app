@@ -12,6 +12,8 @@ class DefaultBehaviorCompiler : BehaviorCompiler {
         val hasFan = "actuate_fan" in ids
         val hasTemperature = "measure_temperature" in ids
         val hasHumidity = "measure_humidity" in ids
+        val hasPressure = "measure_pressure" in ids
+        val hasIlluminance = "measure_illuminance" in ids
         val loggingEnabled = "logging" in ids
         val manualOverride = "manual_override" in ids
 
@@ -170,6 +172,8 @@ class DefaultBehaviorCompiler : BehaviorCompiler {
             val channels = buildList {
                 if (hasTemperature) add("temperature")
                 if (hasHumidity) add("humidity")
+                if (hasPressure) add("pressure")
+                if (hasIlluminance) add("illuminance")
                 if (hasFan) add("fan_state")
             }
             LoggingSpec(
