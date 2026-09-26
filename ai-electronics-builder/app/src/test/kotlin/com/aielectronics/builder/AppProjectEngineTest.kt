@@ -1,5 +1,7 @@
 package com.aielectronics.builder
 
+import com.aielectronics.application.ApplicationProjectEngine
+import com.aielectronics.application.BeginnerIntentInterpreter
 import com.aielectronics.compiler.CompileResult
 import com.aielectronics.compiler.RequirementResolution
 import kotlin.test.Test
@@ -10,7 +12,7 @@ import kotlin.test.assertTrue
 class AppProjectEngineTest {
 
     private val interpreter = BeginnerIntentInterpreter()
-    private val engine = AppProjectEngine()
+    private val engine = ApplicationProjectEngine()
 
     @Test
     fun `golden beginner request compiles end to end from natural language`() {
@@ -60,5 +62,28 @@ class AppProjectEngineTest {
         val allSlots = resolution.requirements.slots.keys
         assertTrue(allSlots.none { it.contains("gpio", ignoreCase = true) })
         assertTrue(allSlots.none { it.contains("library", ignoreCase = true) })
+    }
+
+    @Test
+    fun `combined Japanese temperature humidity term maps both sensors`() {
+        val intent = interpreter.interpret(
+            "温湿度を記録し、30℃以上でファン、28℃以下で停止。"
+        )
+        val resolution = assertIs<RequirementResolution.Ready>(
+            engine.resolve(intent)
+        )
+        val success = assertIs<CompileResult.Success>(
+            engine.compile(resolution.requirements)
+        )
+
+        val capabilities = success.bundle.designIr.capabilities.map { it.value }.toSet()
+        assertTrue("measure_temperature" in capabilities)
+        assertTrue("measure_humidity" in capabilities)
+        assertEquals(
+            "28.0",
+            success.bundle.designIr.settings
+                .single { it.id == "temp_off" }
+                .defaultValue,
+        )
     }
 }

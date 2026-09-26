@@ -3,6 +3,8 @@ package com.aielectronics.builder
 import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.aielectronics.application.ApplicationProjectEngine
+import com.aielectronics.application.BeginnerIntentInterpreter
 import com.aielectronics.ble.android.AndroidBleRuntimeConnector
 import com.aielectronics.compiler.CompileResult
 import com.aielectronics.compiler.RequirementResolution
@@ -18,7 +20,7 @@ import kotlinx.coroutines.withContext
 
 class BuilderAppViewModel(
     private val interpreter: BeginnerIntentInterpreter = BeginnerIntentInterpreter(),
-    private val engine: AppProjectEngine = AppProjectEngine(),
+    private val engine: ApplicationProjectEngine = ApplicationProjectEngine(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BuilderAppState())

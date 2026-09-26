@@ -35,6 +35,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":application-core"))
     implementation(project(":core-model"))
     implementation(project(":parts-db"))
     implementation(project(":project-compiler"))
