@@ -1,3 +1,5 @@
+#include "aie/BlePacket.hpp"
+#include "aie/BleRuntimeBridge.hpp"
 #include "aie/Expression.hpp"
 #include "aie/Manifest.hpp"
 #include "aie/Protocol.hpp"
@@ -166,6 +168,104 @@ void testProtocol() {
     assert(setResult.fields.at("value") == "32.0");
 }
 
+
+void testBlePacketContract() {
+    aie::BlePacketCodec codec;
+
+    const auto encoded = codec.encode(aie::BlePacket{
+        0x1234,
+        0,
+        true,
+        true,
+        std::vector<std::uint8_t>{0x41}
+    });
+
+    const std::vector<std::uint8_t> expected = {
+        0xA1, 0x01, 0x03, 0x12, 0x34, 0x00, 0x00, 0x41
+    };
+    assert(encoded == expected);
+
+    aie::BlePacketizer packetizer;
+    std::vector<std::uint8_t> payload(400, static_cast<std::uint8_t>('x'));
+    const auto packets = packetizer.split(42, payload, 20);
+
+    assert(packets.size() > 20);
+    assert(packetizer.join(packets) == payload);
+}
+
+void testBleRuntimeBridge() {
+    FakeHardware hardware;
+    aie::RuntimeCore runtime(
+        hardware,
+        std::set<std::string>{"drv_sht31", "drv_gpio_sink"}
+    );
+    aie::ProtocolDispatcher dispatcher(runtime);
+    aie::BleRuntimeBridge bridge(dispatcher, 20);
+    aie::FrameCodec frameCodec;
+    aie::BlePacketizer packetizer;
+
+    aie::RuntimeFrame hello;
+    hello.type = aie::MessageType::HELLO;
+    hello.requestId = "hello-1";
+
+    const auto helloText = frameCodec.encode(hello);
+    const std::vector<std::uint8_t> helloBytes(
+        helloText.begin(),
+        helloText.end()
+    );
+    const auto requestPackets = packetizer.split(7, helloBytes, 20);
+
+    std::vector<std::vector<std::uint8_t>> responsePackets;
+    for (const auto& packet : requestPackets) {
+        const auto response = bridge.onPacket(packet, 20);
+        if (!response.empty()) {
+            responsePackets = response;
+        }
+    }
+
+    assert(!responsePackets.empty());
+
+    const auto responseBytes = packetizer.join(responsePackets);
+    const std::string responseText(responseBytes.begin(), responseBytes.end());
+    const auto responseFrame = frameCodec.decode(responseText);
+
+    assert(responseFrame.type == aie::MessageType::CAPABILITIES);
+    assert(responseFrame.requestId == "hello-1");
+    assert(responseFrame.fields.at("protocol_version") == "1");
+
+    aie::RuntimeFrame deploy;
+    deploy.type = aie::MessageType::DEPLOY_MANIFEST;
+    deploy.requestId = "deploy-long";
+    deploy.fields["payload"] = goldenManifest();
+
+    const auto deployText = frameCodec.encode(deploy);
+    const std::vector<std::uint8_t> deployBytes(
+        deployText.begin(),
+        deployText.end()
+    );
+    const auto deployPackets = packetizer.split(8, deployBytes, 20);
+
+    responsePackets.clear();
+    for (const auto& packet : deployPackets) {
+        const auto response = bridge.onPacket(packet, 20);
+        if (!response.empty()) {
+            responsePackets = response;
+        }
+    }
+
+    const auto deployResponseBytes = packetizer.join(responsePackets);
+    const std::string deployResponseText(
+        deployResponseBytes.begin(),
+        deployResponseBytes.end()
+    );
+    const auto deployResponse = frameCodec.decode(deployResponseText);
+
+    assert(deployResponse.type == aie::MessageType::DEPLOY_RESULT);
+    assert(deployResponse.requestId == "deploy-long");
+    assert(deployResponse.fields.at("ok") == "true");
+    assert(runtime.verifyProject("golden"));
+}
+
 } // namespace
 
 int main() {
@@ -173,6 +273,8 @@ int main() {
     testManifestAndRuntime();
     testUnsupportedDriverBlocked();
     testProtocol();
+    testBlePacketContract();
+    testBleRuntimeBridge();
 
     std::cout << "UNIVERSAL_RUNTIME_CORE_OK\n";
     return 0;
