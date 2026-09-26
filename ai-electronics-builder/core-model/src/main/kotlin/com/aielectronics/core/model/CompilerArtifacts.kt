@@ -63,6 +63,13 @@ data class DiagnosticBundle(
     val diagnostics: List<DiagnosticSpec>,
 )
 
+data class BehaviorCompilation(
+    val graph: BehaviorGraph,
+    val settings: List<ProjectSetting>,
+    val logging: LoggingSpec?,
+    val events: List<EventSpec>,
+)
+
 data class DesignCore(
     val schemaVersion: String,
     val project: ProjectInfo,

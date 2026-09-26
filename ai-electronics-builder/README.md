@@ -12,13 +12,14 @@ Target flow:
 2. The compiler asks only unresolved physical/safety requirements.
 3. The system maps intent to capabilities and selects verified components, board and power topology.
 4. Pins are allocated automatically and an authoritative CircuitGraph is compiled.
-5. Deterministic electrical validation must pass before build/deployment artifacts are released.
-6. The app renders graphical wiring/build steps from CircuitGraph.
-7. The user assembles/solders one connection at a time while viewing the phone.
-8. "Configure device" performs provisioning/deployment in one guided action.
-9. The same app becomes the generated control panel, logger, settings UI, and diagnostic tool.
+5. Deterministic electrical validation must pass.
+6. Behavior rules, runtime-mutable settings, Runtime Manifest and phone UI are generated from the validated design.
+7. The app renders graphical wiring/build steps from CircuitGraph.
+8. The user assembles/solders one connection at a time while viewing the phone.
+9. "Configure device" deploys the manifest/runtime configuration in one guided action.
+10. The same app becomes the control panel, logger, settings UI and diagnostic tool.
 
-Advanced mode uses the same Design IR but exposes generated code, pin mapping, manifest, build output, logs, and direct editing.
+Advanced mode uses the same Design IR but exposes generated code, pin mapping, manifest, build output, logs and direct editing.
 
 ## Implemented now
 
@@ -32,24 +33,24 @@ Advanced mode uses the same Design IR but exposes generated code, pin mapping, m
   - RequirementResolver / AutoDecisionEngine
   - CapabilityMapper
   - ComponentResolver / BoardSelector / PowerPlanner
-  - CatalogPinAllocator
-  - CatalogCircuitCompiler
-  - CatalogElectricalValidator
+  - PinAllocator / CircuitCompiler / ElectricalValidator
+  - DefaultBehaviorCompiler
+  - DefaultManifestCompiler
+  - DefaultUiCompiler
+  - DefaultDiagnosticCompiler
   - DefaultProjectCompiler orchestration
 - runtime-protocol
   - one-action deployment contracts
   - runtime-mutable settings contracts
-- examples
-  - practical ventilation reference fixture
 
 ## Next implementation targets
 
-- BehaviorCompiler
-- Runtime Manifest compiler
-- ComponentAssets + pin anchors
-- DiagramSpec / graphical wiring renderer
+- ComponentAssets + verified pin anchors
+- DiagramSpec compiler
+- graphical wiring renderer
 - guided solder-step compiler
-- Android app/features
+- Android app shell / Compose screens
+- BLE Runtime protocol implementation
 - ESP32-S3 Universal Runtime
 - system regression harness
 
@@ -64,4 +65,4 @@ Beginner mode targets zero manual:
 - schematic-reading requirement
 - rebuild/reflash for normal settings changes
 
-The user should mainly decide the goal, prepare parts, perform physical assembly, and complete required safety confirmations.
+The user should mainly decide the goal, prepare parts, perform physical assembly and complete required safety confirmations.
