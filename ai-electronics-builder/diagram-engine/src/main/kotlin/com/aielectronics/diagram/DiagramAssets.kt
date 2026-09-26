@@ -52,6 +52,33 @@ object GoldenDiagramAssetCatalog : DiagramAssetCatalog {
             ),
         ),
         DiagramAsset(
+            assetId = "asset_adafruit_lps22_4633_v1",
+            key = "adafruit_lps22_4633",
+            displayName = "Adafruit LPS22",
+            kind = DiagramVisualKind.SENSOR_MODULE,
+            size = VisualSize(170.0, 130.0),
+            pinAnchors = mapOf(
+                "cp_lps22_vin" to DiagramPinAnchor("VIN", VisualPoint(0.0, 22.0)),
+                "cp_lps22_gnd" to DiagramPinAnchor("GND", VisualPoint(0.0, 44.0)),
+                "cp_lps22_sda" to DiagramPinAnchor("SDA", VisualPoint(0.0, 68.0)),
+                "cp_lps22_scl" to DiagramPinAnchor("SCL", VisualPoint(0.0, 92.0)),
+                "cp_lps22_sdo" to DiagramPinAnchor("SDO / ADDR", VisualPoint(0.0, 114.0)),
+            ),
+        ),
+        DiagramAsset(
+            assetId = "asset_adafruit_vcnl4030_6491_v1",
+            key = "adafruit_vcnl4030_6491",
+            displayName = "Adafruit VCNL4030",
+            kind = DiagramVisualKind.SENSOR_MODULE,
+            size = VisualSize(170.0, 120.0),
+            pinAnchors = mapOf(
+                "cp_vcnl4030_vin" to DiagramPinAnchor("VIN", VisualPoint(0.0, 22.0)),
+                "cp_vcnl4030_gnd" to DiagramPinAnchor("GND", VisualPoint(0.0, 46.0)),
+                "cp_vcnl4030_sda" to DiagramPinAnchor("SDA", VisualPoint(0.0, 72.0)),
+                "cp_vcnl4030_scl" to DiagramPinAnchor("SCL", VisualPoint(0.0, 96.0)),
+            ),
+        ),
+        DiagramAsset(
             assetId = "asset_tbd62003apg_v1",
             key = "tbd62003apg",
             displayName = "TBD62003APG",
