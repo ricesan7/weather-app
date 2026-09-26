@@ -10,7 +10,7 @@ Target flow:
 
 1. Describe what you want to build.
 2. The compiler asks only unresolved physical/safety requirements.
-3. The system selects a verified MCU/components/power topology.
+3. The system maps intent to capabilities and selects verified components, board and power topology.
 4. Deterministic validation checks electrical compatibility.
 5. The app renders an authoritative graphical wiring/build guide.
 6. The user assembles/solders one connection at a time while viewing the phone.
@@ -23,22 +23,28 @@ Advanced mode uses the same Design IR but exposes generated code, pin mapping, m
 
 The single source of truth is Design IR:
 
-natural language -> requirements -> capabilities -> components -> power -> pins -> CircuitGraph -> validation -> DesignCore -> diagrams / manifest / UI / diagnostics -> finalized Design IR
+natural language -> requirements -> capabilities -> verified components -> board -> power -> pins -> CircuitGraph -> validation -> DesignCore -> diagrams / manifest / UI / diagnostics -> finalized Design IR
 
 Electrical safety is deterministic. AI may propose and explain, but it does not override the validator.
 
 ## Implemented now
 
 - core-model
-  - Design IR
-  - DesignCore
+  - Design IR / DesignCore
   - CircuitGraph / ReleaseBundle
+  - engineering component/board/power specs
+- parts-db
+  - engineering catalog abstraction
+  - initial Golden reference catalog
 - project-compiler
   - DefaultRequirementResolver
   - RuleBasedAutoDecisionEngine
+  - DefaultCapabilityMapper
+  - CatalogComponentResolver
+  - CatalogBoardSelector
+  - CatalogPowerPlanner
   - DefaultProjectCompiler orchestration
   - DefaultDesignCoreAssembler
-  - compiler entrypoint tests
 - runtime-protocol
   - one-action deployment contracts
   - runtime-mutable settings contracts
@@ -47,12 +53,11 @@ Electrical safety is deterministic. AI may propose and explain, but it does not 
 
 ## Next implementation targets
 
-- DB-backed CapabilityMapper / ComponentResolver
-- BoardSelector
-- PowerPlanner
 - PinAllocator
 - CircuitCompiler
 - deterministic ElectricalValidator
+- BehaviorCompiler
+- Runtime Manifest compiler
 - DiagramSpec / graphical wiring renderer
 - Android app/features
 - ESP32-S3 Universal Runtime
