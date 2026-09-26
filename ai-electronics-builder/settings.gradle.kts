@@ -25,6 +25,7 @@ include(
     ":diagnostics",
     ":feature-assembly",
     ":feature-control",
+    ":feature-editor",
     ":runtime-protocol",
     ":transport-ble",
     ":transport-ble-android",

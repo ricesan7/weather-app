@@ -13,6 +13,7 @@ enum class AppScreen {
     BUILD,
     CONNECT,
     CONTROL,
+    EDITOR,
 }
 
 data class BuilderAppState(
