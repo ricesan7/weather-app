@@ -53,6 +53,8 @@ private fun BuilderAppHost() {
     BuilderAppScreen(
         state = state,
         onGoalChange = viewModel::setGoal,
+        onAdditionalRequestChange = viewModel::setAdditionalRequest,
+        onApplyAdditionalRequest = viewModel::applyAdditionalRequest,
         onStartDesign = viewModel::startDesign,
         onAnswerQuestion = viewModel::answerQuestion,
         onOpen = viewModel::open,
