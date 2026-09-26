@@ -36,3 +36,17 @@ jobs:
       - name: Test Universal Runtime core
         working-directory: ai-electronics-builder
         run: ctest --test-dir esp32-runtime/build --output-on-failure
+
+  esp-idf-smoke:
+    runs-on: ubuntu-latest
+    container:
+      image: espressif/idf:v6.1
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build ESP32-S3 Runtime BLE smoke firmware
+        shell: bash
+        working-directory: ai-electronics-builder/esp32-runtime/esp-idf-smoke
+        run: |
+          source "$IDF_PATH/export.sh"
+          idf.py set-target esp32s3
+          idf.py build
