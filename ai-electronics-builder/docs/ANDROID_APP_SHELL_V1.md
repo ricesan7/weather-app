@@ -49,11 +49,11 @@ No electrical design truth is generated inside the Android UI.
 
 ## Current completion boundary
 
-The app is now buildable as an Android APK and the Golden ventilation project is covered by an app-entrypoint unit test.
+The app is buildable as an Android APK, the Golden ventilation project is covered by an app-entrypoint unit test, and projects can be saved/resumed locally with current safety rules re-applied on restore.
 
 Still not equivalent to production release:
 - real-device XIAO ESP32S3 + Android bench validation remains required;
 - the local deterministic intent interpreter should be replaced/augmented by the AI conversational parser;
-- persistent project storage is not yet implemented;
+- persistent project storage is implemented in PROJECT_PERSISTENCE_V1.md;
 - broad catalog coverage is not yet implemented;
 - release signing/store packaging is not configured.

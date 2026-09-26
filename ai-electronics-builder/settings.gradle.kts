@@ -27,6 +27,7 @@ include(
     ":runtime-protocol",
     ":transport-ble",
     ":transport-ble-android",
+    ":project-storage-android",
     ":test-harness",
     ":examples",
 )

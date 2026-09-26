@@ -11,9 +11,11 @@ import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.aielectronics.ble.android.AndroidBlePermissionPolicy
+import com.aielectronics.storage.android.SqliteProjectRepository
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -30,11 +32,15 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun BuilderAppHost(
-    viewModel: BuilderAppViewModel = viewModel(),
-) {
-    val state by viewModel.state.collectAsState()
+private fun BuilderAppHost() {
     val context = LocalContext.current
+    val repository = remember(context.applicationContext) {
+        SqliteProjectRepository(context.applicationContext)
+    }
+    val viewModel: BuilderAppViewModel = viewModel(
+        factory = BuilderAppViewModel.Factory(repository)
+    )
+    val state by viewModel.state.collectAsState()
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
@@ -63,7 +69,10 @@ private fun BuilderAppHost(
             }
         },
         onDeploy = viewModel::deploy,
-        onBuildStepCompleted = viewModel::confirmBuildStep,
+        onBuildProgress = viewModel::updateBuildProgress,
+        onResumeProject = viewModel::resumeProject,
+        onDeleteProject = viewModel::deleteProject,
+        onNewProject = viewModel::newProject,
         onClearError = viewModel::clearError,
     )
 }

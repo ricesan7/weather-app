@@ -32,6 +32,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 import com.aielectronics.application.DesignExplanationBuilder
+import com.aielectronics.assembly.GuidedBuildSnapshot
 import com.aielectronics.assembly.GuidedBuildStateMachine
 import com.aielectronics.control.RuntimeControlDashboard
 import com.aielectronics.core.model.DiagramSpec
@@ -47,7 +48,10 @@ fun BuilderAppScreen(
     onOpen: (AppScreen) -> Unit,
     onConnect: () -> Unit,
     onDeploy: () -> Unit,
-    onBuildStepCompleted: (String?) -> Unit,
+    onBuildProgress: (Set<String>, Int) -> Unit,
+    onResumeProject: (String) -> Unit,
+    onDeleteProject: (String) -> Unit,
+    onNewProject: () -> Unit,
     onClearError: () -> Unit,
 ) {
     Column(
@@ -68,6 +72,9 @@ fun BuilderAppScreen(
                 onGoalChange = onGoalChange,
                 onStartDesign = onStartDesign,
                 onAnswerQuestion = onAnswerQuestion,
+                onResumeProject = onResumeProject,
+                onDeleteProject = onDeleteProject,
+                onNewProject = onNewProject,
             )
             AppScreen.DESIGN -> DesignScreen(state, onOpen)
             AppScreen.PARTS -> PartsScreen(state, onOpen)
@@ -75,7 +82,7 @@ fun BuilderAppScreen(
             AppScreen.BUILD -> BuildScreen(
                 state = state,
                 onOpen = onOpen,
-                onBuildStepCompleted = onBuildStepCompleted,
+                onBuildProgress = onBuildProgress,
             )
             AppScreen.CONNECT -> ConnectScreen(
                 state = state,
@@ -95,6 +102,12 @@ private fun AppTitle(state: BuilderAppState) {
             text = "AI Electronics Builder",
             style = MaterialTheme.typography.headlineSmall,
         )
+        state.projectTitle?.let { title ->
+            Text(
+                text = title,
+                style = MaterialTheme.typography.labelLarge,
+            )
+        }
         Text(
             text = when (state.screen) {
                 AppScreen.HOME -> "作りたいものを話す"
@@ -137,6 +150,9 @@ private fun HomeScreen(
     onGoalChange: (String) -> Unit,
     onStartDesign: () -> Unit,
     onAnswerQuestion: (String, String) -> Unit,
+    onResumeProject: (String) -> Unit,
+    onDeleteProject: (String) -> Unit,
+    onNewProject: () -> Unit,
 ) {
     var answer by remember(state.pendingQuestions.firstOrNull()?.slotId) {
         mutableStateOf("")
@@ -166,6 +182,66 @@ private fun HomeScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text(if (state.busy) "設計中…" else "設計する")
+            }
+        }
+
+        if (state.projectId != null) {
+            item {
+                OutlinedButton(
+                    onClick = onNewProject,
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("新しいプロジェクト")
+                }
+            }
+        }
+
+        if (state.savedProjects.isNotEmpty()) {
+            item {
+                HorizontalDivider()
+                Text(
+                    "保存したプロジェクト",
+                    style = MaterialTheme.typography.titleMedium,
+                )
+            }
+
+            items(
+                items = state.savedProjects,
+                key = { it.id },
+            ) { project ->
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            project.title,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            "組立済み ${project.completedConnectionCount}本" +
+                                if (project.deployed) " / 装置設定済み" else "",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        ) {
+                            Button(
+                                onClick = { onResumeProject(project.id) },
+                                enabled = !state.busy,
+                                modifier = Modifier.weight(1f),
+                            ) {
+                                Text("再開")
+                            }
+                            OutlinedButton(
+                                onClick = { onDeleteProject(project.id) },
+                                enabled = !state.busy,
+                            ) {
+                                Text("削除")
+                            }
+                        }
+                    }
+                }
             }
         }
 
@@ -222,6 +298,11 @@ private fun DesignScreen(
         }
         item {
             InfoCard("安全確認", bundle.validation.state.name)
+        }
+        state.lastSavedAtEpochMs?.let {
+            item {
+                InfoCard("保存", "このプロジェクトは端末に自動保存されています")
+            }
         }
         item {
             InfoCard(
@@ -351,12 +432,22 @@ private fun WiringScreen(
 private fun BuildScreen(
     state: BuilderAppState,
     onOpen: (AppScreen) -> Unit,
-    onBuildStepCompleted: (String?) -> Unit,
+    onBuildProgress: (Set<String>, Int) -> Unit,
 ) {
     val bundle = state.bundle ?: return
     val plan = bundle.diagramSpec.buildPlan ?: return
-    val machine = remember(plan) { GuidedBuildStateMachine(plan) }
-    var buildState by remember(plan) { mutableStateOf(machine.state()) }
+    val machine = remember(plan, state.projectId) {
+        GuidedBuildStateMachine(
+            plan = plan,
+            snapshot = GuidedBuildSnapshot(
+                completedConnectionIds = state.completedConnectionIds,
+                currentStepIndex = state.currentBuildStepIndex,
+            ),
+        )
+    }
+    var buildState by remember(plan, state.projectId) {
+        mutableStateOf(machine.state())
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         LinearProgressIndicator(
@@ -380,17 +471,25 @@ private fun BuildScreen(
 
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(
-                    onClick = { buildState = machine.back() },
+                    onClick = {
+                        buildState = machine.back()
+                        val snapshot = machine.snapshot()
+                        onBuildProgress(
+                            snapshot.completedConnectionIds,
+                            snapshot.currentStepIndex,
+                        )
+                    },
                 ) {
                     Text("前へ")
                 }
                 Button(
                     onClick = {
-                        val connectionId = buildState.currentStep?.connectionId
                         buildState = machine.markCurrentCompleted()
-                        if (connectionId != null) {
-                            onBuildStepCompleted(connectionId)
-                        }
+                        val snapshot = machine.snapshot()
+                        onBuildProgress(
+                            snapshot.completedConnectionIds,
+                            snapshot.currentStepIndex,
+                        )
                     },
                     modifier = Modifier.weight(1f),
                 ) {
