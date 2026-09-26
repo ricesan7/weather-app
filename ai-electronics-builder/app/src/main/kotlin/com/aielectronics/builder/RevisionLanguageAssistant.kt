@@ -127,7 +127,7 @@ class GatewayRevisionLanguageAssistant(
             val responseText = stream?.bufferedReader(Charsets.UTF_8)?.use { it.readText() }.orEmpty()
 
             if (status !in 200..299) {
-                error("AIゲートウェイがHTTP $statusを返しました。")
+                error("AIゲートウェイがHTTP " + status + "を返しました。")
             }
 
             val json = JSONObject(responseText)
