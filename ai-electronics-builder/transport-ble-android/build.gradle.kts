@@ -22,6 +22,7 @@ kotlin {
 }
 
 dependencies {
+    implementation(project(":runtime-protocol"))
     implementation(project(":transport-ble"))
 
     testImplementation(kotlin("test-junit5"))
