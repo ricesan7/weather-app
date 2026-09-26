@@ -37,6 +37,34 @@ class DefaultUiCompiler : UiCompiler {
             )
         }
 
+        if ("measure_pressure" in capabilities) {
+            dashboardWidgets += UiWidget.ValueCard(
+                id = "pressure_value",
+                binding = "telemetry.pressure",
+                unit = "hPa",
+            )
+            dashboardWidgets += UiWidget.Gauge(
+                id = "pressure_gauge",
+                binding = "telemetry.pressure",
+                min = 260.0,
+                max = 1260.0,
+            )
+        }
+
+        if ("measure_illuminance" in capabilities) {
+            dashboardWidgets += UiWidget.ValueCard(
+                id = "illuminance_value",
+                binding = "telemetry.illuminance",
+                unit = "lx",
+            )
+            dashboardWidgets += UiWidget.Gauge(
+                id = "illuminance_gauge",
+                binding = "telemetry.illuminance",
+                min = 0.0,
+                max = 16768.0,
+            )
+        }
+
         if ("actuate_fan" in capabilities) {
             dashboardWidgets += UiWidget.Status(
                 id = "fan_status",
