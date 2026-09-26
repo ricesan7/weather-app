@@ -51,6 +51,62 @@ data class ManifestDevice(val instanceId: String, val driverId: String, val conf
 
 data class TestPlan(val tests: List<TestSpec>)
 
+data class DiagnosticBundle(
+    val testPlan: TestPlan,
+    val diagnostics: List<DiagnosticSpec>,
+)
+
+/**
+ * Validated electrical/behavioral design before presentation/deployment artifacts are derived.
+ *
+ * This removes the circular dependency that would otherwise exist if UiCompiler,
+ * ManifestCompiler and DiagnosticCompiler all required a fully-finalized DesignIr.
+ */
+data class DesignCore(
+    val schemaVersion: String,
+    val project: ProjectInfo,
+    val assumptions: List<Assumption> = emptyList(),
+    val unresolved: List<UnresolvedRequirement> = emptyList(),
+    val capabilities: Set<CapabilityId>,
+    val board: BoardSelection,
+    val power: PowerPlan,
+    val components: List<ComponentInstance>,
+    val connections: List<Connection>,
+    val behavior: BehaviorGraph,
+    val settings: List<ProjectSetting> = emptyList(),
+    val logging: LoggingSpec? = null,
+    val events: List<EventSpec> = emptyList(),
+    val assembly: AssemblySpec,
+    val deployment: DeploymentSpec,
+    val safety: SafetySummary,
+) {
+    fun finalize(
+        ui: UiSpec,
+        tests: List<TestSpec>,
+        diagnostics: List<DiagnosticSpec>,
+    ): DesignIr = DesignIr(
+        schemaVersion = schemaVersion,
+        project = project,
+        assumptions = assumptions,
+        unresolved = unresolved,
+        capabilities = capabilities,
+        board = board,
+        power = power,
+        components = components,
+        connections = connections,
+        behavior = behavior,
+        settings = settings,
+        logging = logging,
+        events = events,
+        ui = ui,
+        tests = tests,
+        diagnostics = diagnostics,
+        assembly = assembly,
+        deployment = deployment,
+        safety = safety,
+    )
+}
+
 data class ReleaseBundle(
     val designIr: DesignIr,
     val validation: ValidationReport,

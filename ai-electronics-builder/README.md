@@ -23,25 +23,40 @@ Advanced mode uses the same Design IR but exposes generated code, pin mapping, m
 
 The single source of truth is Design IR:
 
-natural language -> requirements -> capabilities -> components -> power -> pins -> CircuitGraph -> validation -> Design IR -> diagrams / assembly / runtime manifest / UI / diagnostics
+natural language -> requirements -> capabilities -> components -> power -> pins -> CircuitGraph -> validation -> DesignCore -> diagrams / manifest / UI / diagnostics -> finalized Design IR
 
 Electrical safety is deterministic. AI may propose and explain, but it does not override the validator.
 
-## Initial modules
+## Implemented now
 
 - core-model
+  - Design IR
+  - DesignCore
+  - CircuitGraph / ReleaseBundle
 - project-compiler
+  - DefaultRequirementResolver
+  - RuleBasedAutoDecisionEngine
+  - DefaultProjectCompiler orchestration
+  - DefaultDesignCoreAssembler
+  - compiler entrypoint tests
 - runtime-protocol
+  - one-action deployment contracts
+  - runtime-mutable settings contracts
 - examples
+  - practical ventilation reference fixture
 
-Next:
-- parts-db
-- electrical-validator
-- pin-allocator
-- diagram-engine
+## Next implementation targets
+
+- DB-backed CapabilityMapper / ComponentResolver
+- BoardSelector
+- PowerPlanner
+- PinAllocator
+- CircuitCompiler
+- deterministic ElectricalValidator
+- DiagramSpec / graphical wiring renderer
 - Android app/features
 - ESP32-S3 Universal Runtime
-- regression/test harness
+- system regression harness
 
 ## UX release gate
 
