@@ -20,6 +20,12 @@ class DefaultCapabilityMapper : CapabilityMapper {
         if (goal.containsAny("湿度", "温湿度", "humidity")) {
             capabilities += CapabilityId("measure_humidity")
         }
+        if (goal.containsAny("気圧", "大気圧", "pressure", "barometer")) {
+            capabilities += CapabilityId("measure_pressure")
+        }
+        if (goal.containsAny("照度", "明るさ", "illuminance", "lux")) {
+            capabilities += CapabilityId("measure_illuminance")
+        }
         if (goal.containsAny("ファン", "換気", "fan", "ventilation")) {
             capabilities += CapabilityId("actuate_fan")
         }
