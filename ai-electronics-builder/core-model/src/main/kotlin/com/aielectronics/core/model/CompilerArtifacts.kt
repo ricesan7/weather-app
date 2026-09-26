@@ -25,12 +25,71 @@ data class CircuitGraph(
     val connections: List<Connection>,
 )
 
-data class DiagramSpec(val views: List<DiagramView>)
+data class VisualPoint(val x: Double, val y: Double)
+data class VisualSize(val width: Double, val height: Double)
+
+enum class DiagramVisualKind {
+    MCU_BOARD,
+    SENSOR_MODULE,
+    DIP_IC,
+    FAN,
+    POWER_SUPPLY,
+    GENERIC,
+}
+
+data class DiagramPin(
+    val pinId: String,
+    val label: String,
+    val point: VisualPoint,
+)
+
+data class DiagramPlacement(
+    val entityId: String,
+    val assetId: String,
+    val label: String,
+    val kind: DiagramVisualKind,
+    val origin: VisualPoint,
+    val size: VisualSize,
+    val pins: List<DiagramPin>,
+)
+
+data class DiagramWire(
+    val connectionId: String,
+    val from: PinRef,
+    val to: PinRef,
+    val points: List<VisualPoint>,
+    val netType: NetType,
+    val wireSemantic: WireSemantic,
+    val label: String,
+)
+
+data class GuidedBuildStep(
+    val order: Int,
+    val connectionId: String,
+    val title: String,
+    val instruction: String,
+    val diagramViewId: String,
+    val safetyNote: String = "通電せずに作業してください。",
+)
+
+data class GuidedBuildPlan(
+    val steps: List<GuidedBuildStep>,
+)
+
+data class DiagramSpec(
+    val views: List<DiagramView>,
+    val canvasWidth: Int = 920,
+    val canvasHeight: Int = 700,
+    val placements: List<DiagramPlacement> = emptyList(),
+    val wires: List<DiagramWire> = emptyList(),
+    val buildPlan: GuidedBuildPlan? = null,
+)
 
 data class DiagramView(
     val id: String,
     val kind: DiagramViewKind,
     val highlightedConnectionIds: List<String> = emptyList(),
+    val title: String = "",
 )
 
 enum class DiagramViewKind { SYSTEM_OVERVIEW, PHYSICAL_WIRING, SOLDER_STEP, SCHEMATIC, POWER_CHECK }

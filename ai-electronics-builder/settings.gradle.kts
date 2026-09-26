@@ -19,6 +19,8 @@ include(
     ":core-model",
     ":parts-db",
     ":project-compiler",
+    ":diagram-engine",
+    ":feature-assembly",
     ":runtime-protocol",
     ":examples",
 )
