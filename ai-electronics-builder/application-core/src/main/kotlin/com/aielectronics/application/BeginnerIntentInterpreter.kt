@@ -59,7 +59,7 @@ class BeginnerIntentInterpreter {
     private fun temperatureThreshold(text: String): Double? {
         val patterns = listOf(
             Regex("""(?:温度|temperature)[^0-9]{0,12}(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE),
-            Regex("""(\d+(?:\.\d+)?)\s*(?:℃|°C)[^。\n]{0,12}(?:以上|超|より高|above)""", RegexOption.IGNORE_CASE),
+            Regex("""(\d+(?:\.\d+)?)\s*(?:℃|°C)\s*(?:以上|超|より高|above)""", RegexOption.IGNORE_CASE),
         )
         return patterns.firstNotNullOfOrNull { regex ->
             regex.find(text)?.groupValues?.getOrNull(1)?.toDoubleOrNull()
@@ -67,13 +67,21 @@ class BeginnerIntentInterpreter {
     }
 
     private fun temperatureOffThreshold(text: String): Double? {
-        val pattern = Regex(
-            """(\d+(?:\.\d+)?)\s*(?:℃|°C)[^。\n]{0,12}(?:以下|未満|停止|止め)""",
-            RegexOption.IGNORE_CASE,
+        val patterns = listOf(
+            Regex(
+                """(\d+(?:\.\d+)?)\s*(?:℃|°C)\s*(?:以下|未満)""",
+                RegexOption.IGNORE_CASE,
+            ),
+            Regex(
+                """(\d+(?:\.\d+)?)\s*(?:℃|°C)[^0-9℃°]{0,10}(?:停止|止め)""",
+                RegexOption.IGNORE_CASE,
+            ),
         )
-        return pattern.findAll(text)
-            .mapNotNull { it.groupValues.getOrNull(1)?.toDoubleOrNull() }
-            .lastOrNull()
+        return patterns.firstNotNullOfOrNull { pattern ->
+            pattern.findAll(text)
+                .mapNotNull { it.groupValues.getOrNull(1)?.toDoubleOrNull() }
+                .lastOrNull()
+        }
     }
 
     private fun humidityThreshold(text: String): Double? {
@@ -88,9 +96,13 @@ class BeginnerIntentInterpreter {
 
     private fun String.containsExplicitOffThreshold(): Boolean =
         Regex(
-            """\d+(?:\.\d+)?\s*(?:℃|°C)[^。\n]{0,12}(?:以下|未満|停止|止め)""",
+            """\d+(?:\.\d+)?\s*(?:℃|°C)\s*(?:以下|未満)""",
             RegexOption.IGNORE_CASE,
-        ).containsMatchIn(this)
+        ).containsMatchIn(this) ||
+            Regex(
+                """\d+(?:\.\d+)?\s*(?:℃|°C)[^0-9℃°]{0,10}(?:停止|止め)""",
+                RegexOption.IGNORE_CASE,
+            ).containsMatchIn(this)
 
     private fun String.containsAny(vararg terms: String): Boolean {
         val lowered = lowercase()
