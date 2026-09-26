@@ -1,0 +1,31 @@
+name: AI Electronics Builder CI
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - "ai-electronics-builder/**"
+      - ".github/workflows/ai-electronics-builder-ci.yml"
+  pull_request:
+    branches: [ main ]
+    paths:
+      - "ai-electronics-builder/**"
+      - ".github/workflows/ai-electronics-builder-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: ai-electronics-builder
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: "8.10.2"
+      - name: Run Kotlin tests
+        run: gradle test
