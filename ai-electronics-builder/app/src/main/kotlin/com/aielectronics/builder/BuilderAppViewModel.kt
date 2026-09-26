@@ -90,6 +90,12 @@ class BuilderAppViewModel(
         persistCurrent()
     }
 
+    fun confirmBuildStep(connectionId: String? = null) {
+        if (connectionId != null) {
+            recordFriction { recordGuidedBuildConfirmation(connectionId) }
+        }
+    }
+
     fun updateBuildProgress(
         completedConnectionIds: Set<String>,
         currentStepIndex: Int,
