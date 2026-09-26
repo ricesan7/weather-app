@@ -23,5 +23,6 @@ include(
     ":feature-assembly",
     ":runtime-protocol",
     ":transport-ble",
+    ":transport-ble-android",
     ":examples",
 )
