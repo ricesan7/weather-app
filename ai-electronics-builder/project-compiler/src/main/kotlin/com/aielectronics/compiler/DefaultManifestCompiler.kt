@@ -115,7 +115,7 @@ class DefaultManifestCompiler(
     private fun compileTests(core: DesignCore): List<TestSpec> {
         val tests = mutableListOf<TestSpec>()
 
-        if (core.capabilities.any { it.value == "measure_temperature" || it.value == "measure_humidity" }) {
+        if (core.capabilities.any { it.value.startsWith("measure_") || it.value.startsWith("sense_") }) {
             tests += TestSpec(
                 id = "sensor_probe",
                 name = "センサー確認",
@@ -139,6 +139,8 @@ class DefaultManifestCompiler(
     private fun compileTelemetry(core: DesignCore): List<String> = buildList {
         if (core.capabilities.any { it.value == "measure_temperature" }) add("temperature")
         if (core.capabilities.any { it.value == "measure_humidity" }) add("humidity")
+        if (core.capabilities.any { it.value == "measure_pressure" }) add("pressure")
+        if (core.capabilities.any { it.value == "measure_illuminance" }) add("illuminance")
         if (core.capabilities.any { it.value == "actuate_fan" }) add("fan_state")
     }
 
