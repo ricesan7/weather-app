@@ -64,11 +64,11 @@ object PracticalVentilationFixture {
         ui = UiSpec(
             pages = listOf(
                 UiPage("dashboard", "状態", listOf(
-                    UiWidget.ValueCard("temp", "temperature", "°C"),
-                    UiWidget.ValueCard("rh", "humidity", "%"),
-                    UiWidget.Status("fan_state", "fan.state"),
+                    UiWidget.ValueCard("temp", "telemetry.temperature", "°C"),
+                    UiWidget.ValueCard("rh", "telemetry.humidity", "%"),
+                    UiWidget.Status("fan_state", "telemetry.fan_state"),
                     UiWidget.Select("mode", "settings.mode", listOf("AUTO", "MANUAL")),
-                    UiWidget.Toggle("fan_manual", "controls.fan_manual"),
+                    UiWidget.Toggle("fan_manual", "settings.manual_fan"),
                 )),
                 UiPage("history", "履歴", listOf(UiWidget.LineChart("history_temp", "logging.temperature"))),
             )

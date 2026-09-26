@@ -21,6 +21,7 @@ include(
     ":project-compiler",
     ":diagram-engine",
     ":feature-assembly",
+    ":feature-control",
     ":runtime-protocol",
     ":transport-ble",
     ":transport-ble-android",

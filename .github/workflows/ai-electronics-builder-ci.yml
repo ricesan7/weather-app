@@ -26,7 +26,7 @@ jobs:
           gradle-version: "8.10.2"
       - name: Run Kotlin and Android unit tests
         working-directory: ai-electronics-builder
-        run: gradle test :transport-ble-android:testDebugUnitTest
+        run: gradle test :transport-ble-android:testDebugUnitTest :feature-control:testDebugUnitTest
       - name: Configure Universal Runtime core
         working-directory: ai-electronics-builder
         run: cmake -S esp32-runtime -B esp32-runtime/build
