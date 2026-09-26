@@ -34,6 +34,7 @@ import androidx.compose.ui.unit.dp
 import com.aielectronics.application.DesignExplanationBuilder
 import com.aielectronics.assembly.GuidedBuildStateMachine
 import com.aielectronics.control.RuntimeControlDashboard
+import com.aielectronics.editor.AdvancedProjectEditor
 import com.aielectronics.core.model.DiagramSpec
 import com.aielectronics.core.model.NetType
 import com.aielectronics.parts.GoldenEngineeringCatalog
@@ -89,6 +90,10 @@ fun BuilderAppScreen(
                 onOpen = onOpen,
                 onOpenBuildStep = onOpenBuildStep,
             )
+            AppScreen.EDITOR -> AdvancedEditorScreen(
+                state = state,
+                onOpen = onOpen,
+            )
         }
     }
 }
@@ -109,6 +114,7 @@ private fun AppTitle(state: BuilderAppState) {
                 AppScreen.BUILD -> "組立"
                 AppScreen.CONNECT -> "装置へ設定"
                 AppScreen.CONTROL -> "操作・診断"
+                AppScreen.EDITOR -> "上級者モード"
             },
             style = MaterialTheme.typography.titleMedium,
         )
@@ -258,6 +264,14 @@ private fun DesignScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("必要な部品を見る")
+            }
+        }
+        item {
+            OutlinedButton(
+                onClick = { onOpen(AppScreen.EDITOR) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("上級者モードでコードを見る")
             }
         }
         item {
@@ -618,4 +632,19 @@ private fun wireColor(netType: NetType): Color = when (netType) {
     NetType.CONTROL -> Color(0xFF1565C0)
     NetType.LOAD -> Color(0xFF6A1B9A)
     else -> Color(0xFF546E7A)
+}
+
+
+@Composable
+private fun AdvancedEditorScreen(
+    state: BuilderAppState,
+    onOpen: (AppScreen) -> Unit,
+) {
+    val bundle = state.bundle ?: return
+
+    AdvancedProjectEditor(
+        bundle = bundle,
+        onBack = { onOpen(AppScreen.DESIGN) },
+        modifier = Modifier.fillMaxSize(),
+    )
 }

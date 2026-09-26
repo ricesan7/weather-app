@@ -26,7 +26,7 @@ jobs:
           gradle-version: "8.10.2"
       - name: Run Kotlin and Android unit tests
         working-directory: ai-electronics-builder
-        run: gradle test :test-harness:test :transport-ble-android:testDebugUnitTest :feature-control:testDebugUnitTest :app:testDebugUnitTest
+        run: gradle test :test-harness:test :transport-ble-android:testDebugUnitTest :feature-control:testDebugUnitTest :feature-editor:testDebugUnitTest :app:testDebugUnitTest
       - name: Assemble Android debug APK
         working-directory: ai-electronics-builder
         run: gradle :app:assembleDebug
