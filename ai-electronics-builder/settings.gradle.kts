@@ -22,5 +22,6 @@ include(
     ":diagram-engine",
     ":feature-assembly",
     ":runtime-protocol",
+    ":transport-ble",
     ":examples",
 )
