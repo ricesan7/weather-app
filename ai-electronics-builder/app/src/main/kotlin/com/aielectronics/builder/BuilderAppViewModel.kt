@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.aielectronics.application.ApplicationProjectEngine
+import com.aielectronics.application.BeginnerErrorPresenter
 import com.aielectronics.application.BeginnerIntentInterpreter
 import com.aielectronics.ble.android.AndroidBleRuntimeConnector
 import com.aielectronics.compiler.CompileResult
@@ -84,7 +85,7 @@ class BuilderAppViewModel(
                 _state.update {
                     it.copy(
                         busy = false,
-                        error = throwable.message ?: "装置に接続できませんでした。",
+                        error = BeginnerErrorPresenter.connectionFailure(),
                         deployMessage = "",
                     )
                 }
@@ -160,7 +161,7 @@ class BuilderAppViewModel(
                 _state.update {
                     it.copy(
                         busy = false,
-                        error = throwable.message ?: "装置への設定に失敗しました。",
+                        error = BeginnerErrorPresenter.deploymentFailure(),
                         deployMessage = "要確認",
                     )
                 }
@@ -200,14 +201,16 @@ class BuilderAppViewModel(
 
                                 is CompileResult.Blocked ->
                                     ResolutionResult.Error(
-                                        compile.report.issues.joinToString("\n") {
-                                            it.code + ": " + it.message
-                                        }
+                                        BeginnerErrorPresenter.validationBlocked(
+                                            compile.report
+                                        )
                                     )
 
                                 is CompileResult.Failed ->
                                     ResolutionResult.Error(
-                                        compile.error.stage + ": " + compile.error.message
+                                        BeginnerErrorPresenter.compileFailure(
+                                            compile.error
+                                        )
                                     )
                             }
                         }

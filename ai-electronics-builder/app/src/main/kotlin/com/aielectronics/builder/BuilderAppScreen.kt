@@ -31,6 +31,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
+import com.aielectronics.application.DesignExplanationBuilder
 import com.aielectronics.assembly.GuidedBuildStateMachine
 import com.aielectronics.control.RuntimeControlDashboard
 import com.aielectronics.core.model.DiagramSpec
@@ -224,6 +225,22 @@ private fun DesignScreen(
                     "配線 ${bundle.circuitGraph.connections.size}本 / " +
                     "操作画面 ${bundle.uiSpec.pages.size}ページ",
             )
+        }
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Text(
+                        "この設計になった理由",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    DesignExplanationBuilder.explain(bundle).forEach { reason ->
+                        Text("・" + reason)
+                    }
+                }
+            }
         }
         item {
             Button(
