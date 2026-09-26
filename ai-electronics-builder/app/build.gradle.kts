@@ -47,6 +47,7 @@ dependencies {
     implementation(project(":runtime-protocol"))
     implementation(project(":transport-ble"))
     implementation(project(":transport-ble-android"))
+    implementation(project(":project-storage-android"))
 
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
