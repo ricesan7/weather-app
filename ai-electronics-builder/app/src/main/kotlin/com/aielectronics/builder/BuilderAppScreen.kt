@@ -33,6 +33,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.unit.dp
 import com.aielectronics.application.DesignExplanationBuilder
 import com.aielectronics.assembly.GuidedBuildStateMachine
+import com.aielectronics.bench.BenchGateScreen
 import com.aielectronics.control.RuntimeControlDashboard
 import com.aielectronics.editor.AdvancedProjectEditor
 import com.aielectronics.core.model.DiagramSpec
@@ -94,6 +95,10 @@ fun BuilderAppScreen(
                 state = state,
                 onOpen = onOpen,
             )
+            AppScreen.BENCH -> BenchScreen(
+                state = state,
+                onOpen = onOpen,
+            )
         }
     }
 }
@@ -115,6 +120,7 @@ private fun AppTitle(state: BuilderAppState) {
                 AppScreen.CONNECT -> "装置へ設定"
                 AppScreen.CONTROL -> "操作・診断"
                 AppScreen.EDITOR -> "上級者モード"
+                AppScreen.BENCH -> "実機ベンチE2E"
             },
             style = MaterialTheme.typography.titleMedium,
         )
@@ -487,6 +493,13 @@ private fun ConnectScreen(
             ) {
                 Text(if (state.busy) "設定中…" else "装置へ設定")
             }
+            OutlinedButton(
+                onClick = { onOpen(AppScreen.BENCH) },
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("実機ベンチ試験")
+            }
         }
 
         OutlinedButton(
@@ -645,6 +658,36 @@ private fun AdvancedEditorScreen(
     AdvancedProjectEditor(
         bundle = bundle,
         onBack = { onOpen(AppScreen.DESIGN) },
+        modifier = Modifier.fillMaxSize(),
+    )
+}
+
+
+@Composable
+private fun BenchScreen(
+    state: BuilderAppState,
+    onOpen: (AppScreen) -> Unit,
+) {
+    val bundle = state.bundle ?: return
+    val connection = state.connection
+
+    if (connection == null) {
+        Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+            Text("装置への接続がありません。")
+            Button(
+                onClick = { onOpen(AppScreen.CONNECT) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("接続画面へ")
+            }
+        }
+        return
+    }
+
+    BenchGateScreen(
+        bundle = bundle,
+        transport = connection.transport,
+        onBack = { onOpen(AppScreen.CONNECT) },
         modifier = Modifier.fillMaxSize(),
     )
 }

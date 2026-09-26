@@ -24,6 +24,7 @@ include(
     ":diagram-engine",
     ":diagnostics",
     ":feature-assembly",
+    ":feature-bench",
     ":feature-control",
     ":feature-editor",
     ":runtime-protocol",
