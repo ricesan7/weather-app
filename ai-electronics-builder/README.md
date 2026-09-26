@@ -11,40 +11,31 @@ Target flow:
 1. Describe what you want to build.
 2. The compiler asks only unresolved physical/safety requirements.
 3. The system maps intent to capabilities and selects verified components, board and power topology.
-4. Deterministic validation checks electrical compatibility.
-5. The app renders an authoritative graphical wiring/build guide.
-6. The user assembles/solders one connection at a time while viewing the phone.
-7. "Configure device" performs provisioning/deployment in one guided action.
-8. The same app becomes the generated control panel, logger, settings UI, and diagnostic tool.
+4. Pins are allocated automatically and an authoritative CircuitGraph is compiled.
+5. Deterministic electrical validation must pass before build/deployment artifacts are released.
+6. The app renders graphical wiring/build steps from CircuitGraph.
+7. The user assembles/solders one connection at a time while viewing the phone.
+8. "Configure device" performs provisioning/deployment in one guided action.
+9. The same app becomes the generated control panel, logger, settings UI, and diagnostic tool.
 
 Advanced mode uses the same Design IR but exposes generated code, pin mapping, manifest, build output, logs, and direct editing.
-
-## Architecture
-
-The single source of truth is Design IR:
-
-natural language -> requirements -> capabilities -> verified components -> board -> power -> pins -> CircuitGraph -> validation -> DesignCore -> diagrams / manifest / UI / diagnostics -> finalized Design IR
-
-Electrical safety is deterministic. AI may propose and explain, but it does not override the validator.
 
 ## Implemented now
 
 - core-model
-  - Design IR / DesignCore
-  - CircuitGraph / ReleaseBundle
-  - engineering component/board/power specs
+  - Design IR / DesignCore / CircuitGraph
+  - engineering component/board/power/pin specifications
 - parts-db
   - engineering catalog abstraction
   - initial Golden reference catalog
 - project-compiler
-  - DefaultRequirementResolver
-  - RuleBasedAutoDecisionEngine
-  - DefaultCapabilityMapper
-  - CatalogComponentResolver
-  - CatalogBoardSelector
-  - CatalogPowerPlanner
+  - RequirementResolver / AutoDecisionEngine
+  - CapabilityMapper
+  - ComponentResolver / BoardSelector / PowerPlanner
+  - CatalogPinAllocator
+  - CatalogCircuitCompiler
+  - CatalogElectricalValidator
   - DefaultProjectCompiler orchestration
-  - DefaultDesignCoreAssembler
 - runtime-protocol
   - one-action deployment contracts
   - runtime-mutable settings contracts
@@ -53,12 +44,11 @@ Electrical safety is deterministic. AI may propose and explain, but it does not 
 
 ## Next implementation targets
 
-- PinAllocator
-- CircuitCompiler
-- deterministic ElectricalValidator
 - BehaviorCompiler
 - Runtime Manifest compiler
+- ComponentAssets + pin anchors
 - DiagramSpec / graphical wiring renderer
+- guided solder-step compiler
 - Android app/features
 - ESP32-S3 Universal Runtime
 - system regression harness
