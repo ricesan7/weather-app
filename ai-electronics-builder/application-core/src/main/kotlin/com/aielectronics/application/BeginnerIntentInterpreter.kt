@@ -61,9 +61,7 @@ class BeginnerIntentInterpreter {
             Regex("""(?:温度|temperature)[^0-9]{0,12}(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE),
             Regex("""(\d+(?:\.\d+)?)\s*(?:℃|°C)\s*(?:以上|超|より高|above)""", RegexOption.IGNORE_CASE),
         )
-        return patterns.firstNotNullOfOrNull { regex ->
-            regex.find(text)?.groupValues?.getOrNull(1)?.toDoubleOrNull()
-        }
+        return latestNumberMatch(text, patterns)
     }
 
     private fun temperatureOffThreshold(text: String): Double? {
@@ -77,11 +75,7 @@ class BeginnerIntentInterpreter {
                 RegexOption.IGNORE_CASE,
             ),
         )
-        return patterns.firstNotNullOfOrNull { pattern ->
-            pattern.findAll(text)
-                .mapNotNull { it.groupValues.getOrNull(1)?.toDoubleOrNull() }
-                .lastOrNull()
-        }
+        return latestNumberMatch(text, patterns)
     }
 
     private fun humidityThreshold(text: String): Double? {
@@ -89,10 +83,25 @@ class BeginnerIntentInterpreter {
             Regex("""(?:湿度|humidity)[^0-9]{0,12}(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE),
             Regex("""(\d+(?:\.\d+)?)\s*%[^。\n]{0,12}(?:以上|超|above)""", RegexOption.IGNORE_CASE),
         )
-        return patterns.firstNotNullOfOrNull { regex ->
-            regex.find(text)?.groupValues?.getOrNull(1)?.toDoubleOrNull()
-        }
+        return latestNumberMatch(text, patterns)
     }
+
+    private fun latestNumberMatch(
+        text: String,
+        patterns: List<Regex>,
+    ): Double? =
+        patterns
+            .flatMap { regex ->
+                regex.findAll(text)
+                    .mapNotNull { match ->
+                        match.groupValues.getOrNull(1)
+                            ?.toDoubleOrNull()
+                            ?.let { value -> match.range.first to value }
+                    }
+                    .toList()
+            }
+            .maxByOrNull { it.first }
+            ?.second
 
     private fun String.containsExplicitOffThreshold(): Boolean =
         Regex(
