@@ -16,6 +16,7 @@ dependencyResolutionManagement {
 rootProject.name = "ai-electronics-builder-core"
 
 include(
+    ":app",
     ":core-model",
     ":parts-db",
     ":project-compiler",
