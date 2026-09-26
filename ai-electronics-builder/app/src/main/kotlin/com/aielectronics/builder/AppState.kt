@@ -1,5 +1,6 @@
 package com.aielectronics.builder
 
+import com.aielectronics.application.SavedProjectSummary
 import com.aielectronics.ble.android.AndroidBleRuntimeConnection
 import com.aielectronics.core.model.MissingRequirement
 import com.aielectronics.core.model.ReleaseBundle
@@ -31,4 +32,11 @@ data class BuilderAppState(
     val deployMessage: String = "",
     val deployed: Boolean = false,
     val buildTargetStepOrder: Int? = null,
+    val projectId: String? = null,
+    val projectTitle: String? = null,
+    val projectCreatedAtEpochMs: Long? = null,
+    val completedConnectionIds: Set<String> = emptySet(),
+    val currentBuildStepIndex: Int = 0,
+    val savedProjects: List<SavedProjectSummary> = emptyList(),
+    val lastSavedAtEpochMs: Long? = null,
 )
