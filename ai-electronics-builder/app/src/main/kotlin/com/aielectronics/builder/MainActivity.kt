@@ -63,6 +63,7 @@ private fun BuilderAppHost(
             }
         },
         onDeploy = viewModel::deploy,
+        onBuildStepCompleted = viewModel::confirmBuildStep,
         onClearError = viewModel::clearError,
     )
 }
