@@ -14,10 +14,10 @@ class DefaultCapabilityMapper : CapabilityMapper {
             ?.filter(String::isNotEmpty)
             ?.forEach { capabilities += CapabilityId(it) }
 
-        if (goal.containsAny("温度", "temperature")) {
+        if (goal.containsAny("温度", "温湿度", "temperature")) {
             capabilities += CapabilityId("measure_temperature")
         }
-        if (goal.containsAny("湿度", "humidity")) {
+        if (goal.containsAny("湿度", "温湿度", "humidity")) {
             capabilities += CapabilityId("measure_humidity")
         }
         if (goal.containsAny("ファン", "換気", "fan", "ventilation")) {
@@ -34,7 +34,7 @@ class DefaultCapabilityMapper : CapabilityMapper {
         if (
             requirements.slots["req_logging"]?.value == "enabled" ||
             requirements.slots["logging_requested"]?.value.asBoolean() ||
-            goal.containsAny("履歴", "記録", "ログ", "グラフ", "history", "log")
+            goal.containsAny("履歴", "記録", "ログ", "グラフ", "保存", "history", "log")
         ) {
             capabilities += CapabilityId("logging")
         }

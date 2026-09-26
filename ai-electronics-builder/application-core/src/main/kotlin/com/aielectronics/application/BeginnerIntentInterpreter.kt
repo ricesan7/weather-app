@@ -1,9 +1,6 @@
-package com.aielectronics.builder
+package com.aielectronics.application
 
-import com.aielectronics.compiler.*
-import com.aielectronics.core.model.*
-import com.aielectronics.diagram.DefaultDiagramCompiler
-import com.aielectronics.parts.GoldenEngineeringCatalog
+import com.aielectronics.core.model.IntentDraft
 import kotlin.math.roundToInt
 
 class BeginnerIntentInterpreter {
@@ -16,27 +13,33 @@ class BeginnerIntentInterpreter {
         val facts = linkedMapOf<String, String>()
 
         val hasActuator = normalized.containsAny(
-            "ファン", "換気", "モーター", "ポンプ", "サーボ", "リレー",
-            "fan", "motor", "pump", "servo", "relay",
+            "ファン", "換気", "モーター", "ポンプ", "サーボ", "リレー", "ヒーター",
+            "fan", "motor", "pump", "servo", "relay", "heater",
         )
         if (hasActuator) facts["has_actuator"] = "true"
 
         val automation = normalized.containsAny(
-            "自動", "なったら", "以上", "以下", "応じて",
-            "automatic", "when", "above", "below",
+            "自動", "なったら", "以上", "以下", "応じて", "必ず停止",
+            "automatic", "when", "above", "below", "interlock",
         )
         if (automation) {
             facts["automation_required"] = "true"
             facts["automation_rule"] = normalized
         }
 
-        if (normalized.containsAny("履歴", "記録", "ログ", "グラフ", "history", "log")) {
+        if (normalized.containsAny("履歴", "記録", "ログ", "グラフ", "保存", "history", "log")) {
             facts["logging_requested"] = "true"
         }
 
         temperatureThreshold(normalized)?.let { value ->
             facts["temp_on"] = formatNumber(value)
-            facts["temp_off"] = formatNumber(value - 2.0)
+            if (!normalized.containsExplicitOffThreshold()) {
+                facts["temp_off"] = formatNumber(value - 2.0)
+            }
+        }
+
+        temperatureOffThreshold(normalized)?.let { value ->
+            facts["temp_off"] = formatNumber(value)
         }
 
         humidityThreshold(normalized)?.let { value ->
@@ -63,6 +66,16 @@ class BeginnerIntentInterpreter {
         }
     }
 
+    private fun temperatureOffThreshold(text: String): Double? {
+        val pattern = Regex(
+            """(\d+(?:\.\d+)?)\s*(?:℃|°C)[^。\n]{0,12}(?:以下|未満|停止|止め)""",
+            RegexOption.IGNORE_CASE,
+        )
+        return pattern.findAll(text)
+            .mapNotNull { it.groupValues.getOrNull(1)?.toDoubleOrNull() }
+            .lastOrNull()
+    }
+
     private fun humidityThreshold(text: String): Double? {
         val patterns = listOf(
             Regex("""(?:湿度|humidity)[^0-9]{0,12}(\d+(?:\.\d+)?)""", RegexOption.IGNORE_CASE),
@@ -72,6 +85,12 @@ class BeginnerIntentInterpreter {
             regex.find(text)?.groupValues?.getOrNull(1)?.toDoubleOrNull()
         }
     }
+
+    private fun String.containsExplicitOffThreshold(): Boolean =
+        Regex(
+            """\d+(?:\.\d+)?\s*(?:℃|°C)[^。\n]{0,12}(?:以下|未満|停止|止め)""",
+            RegexOption.IGNORE_CASE,
+        ).containsMatchIn(this)
 
     private fun String.containsAny(vararg terms: String): Boolean {
         val lowered = lowercase()
@@ -84,37 +103,4 @@ class BeginnerIntentInterpreter {
         } else {
             value.toString()
         }
-}
-
-class AppProjectEngine(
-    private val catalog: com.aielectronics.parts.EngineeringCatalog =
-        GoldenEngineeringCatalog,
-) {
-    private val requirementResolver = DefaultRequirementResolver()
-    private val diagramCompiler = DefaultDiagramCompiler(catalog)
-
-    private val compiler = DefaultProjectCompiler(
-        capabilityMapper = DefaultCapabilityMapper(),
-        componentResolver = CatalogComponentResolver(catalog),
-        boardSelector = CatalogBoardSelector(catalog),
-        powerPlanner = CatalogPowerPlanner(catalog),
-        pinAllocator = CatalogPinAllocator(catalog),
-        circuitCompiler = CatalogCircuitCompiler(catalog),
-        electricalValidator = CatalogElectricalValidator(catalog),
-        behaviorCompiler = DefaultBehaviorCompiler(),
-        coreAssembler = DefaultDesignCoreAssembler(),
-        diagramCompiler = object : DiagramCompiler {
-            override fun compile(graph: CircuitGraph): Result<DiagramSpec> =
-                diagramCompiler.compile(graph)
-        },
-        manifestCompiler = DefaultManifestCompiler(catalog),
-        uiCompiler = DefaultUiCompiler(),
-        diagnosticCompiler = DefaultDiagnosticCompiler(),
-    )
-
-    fun resolve(intent: IntentDraft): RequirementResolution =
-        requirementResolver.resolve(intent)
-
-    fun compile(requirements: ResolvedRequirements): CompileResult =
-        compiler.compile(requirements)
 }

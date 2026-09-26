@@ -17,6 +17,7 @@ rootProject.name = "ai-electronics-builder-core"
 
 include(
     ":app",
+    ":application-core",
     ":core-model",
     ":parts-db",
     ":project-compiler",
@@ -26,5 +27,6 @@ include(
     ":runtime-protocol",
     ":transport-ble",
     ":transport-ble-android",
+    ":test-harness",
     ":examples",
 )
