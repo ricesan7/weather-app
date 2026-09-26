@@ -406,7 +406,7 @@ private fun RevisionScreen(
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text(
-                "現在の設計に追加したいこと、変更したい条件、不要になった機能などを自然な言葉で入力してください。",
+                "現在の設計に追加したいことや、変更したい条件を自然な言葉で入力してください。",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
