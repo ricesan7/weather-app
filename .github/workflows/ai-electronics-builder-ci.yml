@@ -15,9 +15,6 @@ on:
 jobs:
   test:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: ai-electronics-builder
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-java@v4
@@ -28,4 +25,14 @@ jobs:
         with:
           gradle-version: "8.10.2"
       - name: Run Kotlin tests
+        working-directory: ai-electronics-builder
         run: gradle test
+      - name: Configure Universal Runtime core
+        working-directory: ai-electronics-builder
+        run: cmake -S esp32-runtime -B esp32-runtime/build
+      - name: Build Universal Runtime core
+        working-directory: ai-electronics-builder
+        run: cmake --build esp32-runtime/build
+      - name: Test Universal Runtime core
+        working-directory: ai-electronics-builder
+        run: ctest --test-dir esp32-runtime/build --output-on-failure
