@@ -14,6 +14,7 @@ enum class AppScreen {
     BUILD,
     CONNECT,
     CONTROL,
+    REVISION,
     EDITOR,
     BENCH,
 }
@@ -21,6 +22,7 @@ enum class AppScreen {
 data class BuilderAppState(
     val screen: AppScreen = AppScreen.HOME,
     val goalText: String = "",
+    val additionalRequestText: String = "",
     val busy: Boolean = false,
     val error: String? = null,
     val pendingQuestions: List<MissingRequirement> = emptyList(),

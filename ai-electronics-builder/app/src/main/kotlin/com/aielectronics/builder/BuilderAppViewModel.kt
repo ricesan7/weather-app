@@ -56,6 +56,36 @@ class BuilderAppViewModel(
         _state.update { it.copy(goalText = text) }
     }
 
+    fun setAdditionalRequest(text: String) {
+        _state.update { it.copy(additionalRequestText = text) }
+    }
+
+    fun applyAdditionalRequest() {
+        val request = _state.value.additionalRequestText.trim()
+        if (request.isBlank()) {
+            _state.update { it.copy(error = "追加したい要望を入力してください。") }
+            return
+        }
+        if (_state.value.projectId == null || _state.value.bundle == null) {
+            _state.update { it.copy(error = "先に設計を作成してください。") }
+            return
+        }
+
+        _state.update {
+            it.copy(
+                goalText = appendAdditionalRequest(it.goalText, request),
+                additionalRequestText = "",
+                clarificationValues = emptyMap(),
+                deployed = false,
+                connection = null,
+                deployProgress = 0,
+                deployMessage = "追加要望を反映したため、装置への再設定が必要です。",
+                error = null,
+            )
+        }
+        resolveAndCompile()
+    }
+
     fun newProject() {
         val saved = _state.value.savedProjects
         _state.value = BuilderAppState(savedProjects = saved)
@@ -563,6 +593,16 @@ class BuilderAppViewModel(
             )
         }
     }
+
+    private fun appendAdditionalRequest(
+        currentGoal: String,
+        request: String,
+    ): String =
+        buildString {
+            append(currentGoal.trim())
+            append("\n\n【追加要望】\n")
+            append(request.trim())
+        }
 
     private fun persistCurrent() {
         val snapshotState = _state.value
