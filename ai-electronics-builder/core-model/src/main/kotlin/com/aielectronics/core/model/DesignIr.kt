@@ -56,13 +56,16 @@ data class PowerDomain(
     val nominalVoltageV: Double,
     val maxRequiredCurrentMa: Double,
     val memberIds: Set<String>,
+    val unknownCurrentMemberIds: Set<String> = emptySet(),
 )
 
 data class PowerSource(
     val id: String,
     val nominalVoltageV: Double,
-    val maxCurrentMa: Double,
+    val maxCurrentMa: Double?,
     val polarity: Polarity = Polarity.UNKNOWN,
+    val componentId: String? = null,
+    val verified: Boolean = false,
 )
 
 enum class Polarity { CENTER_POSITIVE, CENTER_NEGATIVE, NOT_APPLICABLE, UNKNOWN }

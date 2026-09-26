@@ -32,7 +32,7 @@ class DefaultProjectCompiler(
         val board = boardSelector.select(capabilities, components, requirements)
             .getOrElse { return failed("board_select", it) }
 
-        val power = powerPlanner.plan(components, requirements)
+        val power = powerPlanner.plan(board, components, requirements)
             .getOrElse { return failed("power_plan", it) }
 
         val pins = pinAllocator.allocate(board, components)

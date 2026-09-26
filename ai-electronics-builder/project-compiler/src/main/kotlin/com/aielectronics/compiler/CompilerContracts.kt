@@ -41,7 +41,11 @@ interface BoardSelector {
 }
 
 interface PowerPlanner {
-    fun plan(components: ResolvedComponents, requirements: ResolvedRequirements): Result<PowerPlan>
+    fun plan(
+        board: BoardSelection,
+        components: ResolvedComponents,
+        requirements: ResolvedRequirements,
+    ): Result<PowerPlan>
 }
 
 interface PinAllocator {

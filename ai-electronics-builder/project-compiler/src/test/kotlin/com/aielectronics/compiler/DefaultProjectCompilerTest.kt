@@ -101,6 +101,7 @@ class DefaultProjectCompilerTest {
             },
             powerPlanner = object : PowerPlanner {
                 override fun plan(
+                    board: BoardSelection,
                     components: ResolvedComponents,
                     requirements: ResolvedRequirements,
                 ) = Result.success(power)
