@@ -57,3 +57,12 @@ Still not equivalent to production release:
 - persistent project storage is not yet implemented;
 - broad catalog coverage is not yet implemented;
 - release signing/store packaging is not configured.
+
+
+## Project persistence
+
+Android projects are saved locally through `project-storage-android`.
+The app persists durable user intent, clarification answers and guided-build progress,
+then recompiles through the current deterministic compiler and validator on resume.
+Compiled electrical artifacts and BLE connection objects are not persisted.
+See `PROJECT_PERSISTENCE_V1.md`.
