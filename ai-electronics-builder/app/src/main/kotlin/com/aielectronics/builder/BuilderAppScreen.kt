@@ -45,6 +45,8 @@ import com.aielectronics.parts.GoldenEngineeringCatalog
 fun BuilderAppScreen(
     state: BuilderAppState,
     onGoalChange: (String) -> Unit,
+    onAdditionalRequestChange: (String) -> Unit,
+    onApplyAdditionalRequest: () -> Unit,
     onStartDesign: () -> Unit,
     onAnswerQuestion: (String, String) -> Unit,
     onOpen: (AppScreen) -> Unit,
@@ -64,6 +66,20 @@ fun BuilderAppScreen(
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
         AppTitle(state)
+
+        if (
+            state.projectId != null &&
+            state.screen != AppScreen.HOME &&
+            state.screen != AppScreen.REVISION
+        ) {
+            OutlinedButton(
+                onClick = { onOpen(AppScreen.REVISION) },
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("追加要望を伝える")
+            }
+        }
 
         state.error?.let { message ->
             ErrorCard(message, onClearError)
@@ -97,6 +113,12 @@ fun BuilderAppScreen(
                 state = state,
                 onOpen = onOpen,
                 onOpenBuildStep = onOpenBuildStep,
+            )
+            AppScreen.REVISION -> RevisionScreen(
+                state = state,
+                onAdditionalRequestChange = onAdditionalRequestChange,
+                onApplyAdditionalRequest = onApplyAdditionalRequest,
+                onOpen = onOpen,
             )
             AppScreen.EDITOR -> AdvancedEditorScreen(
                 state = state,
@@ -132,6 +154,7 @@ private fun AppTitle(state: BuilderAppState) {
                 AppScreen.BUILD -> "組立"
                 AppScreen.CONNECT -> "装置へ設定"
                 AppScreen.CONTROL -> "操作・診断"
+                AppScreen.REVISION -> "追加要望"
                 AppScreen.EDITOR -> "上級者モード"
                 AppScreen.BENCH -> "実機ベンチE2E"
             },
@@ -368,6 +391,60 @@ private fun DesignScreen(
                 modifier = Modifier.fillMaxWidth(),
             ) {
                 Text("作り直す")
+            }
+        }
+    }
+}
+
+@Composable
+private fun RevisionScreen(
+    state: BuilderAppState,
+    onAdditionalRequestChange: (String) -> Unit,
+    onApplyAdditionalRequest: () -> Unit,
+    onOpen: (AppScreen) -> Unit,
+) {
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            Text(
+                "現在の設計に追加したいこと、変更したい条件、不要になった機能などを自然な言葉で入力してください。",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        item {
+            InfoCard(
+                "現在の要件",
+                state.goalText,
+            )
+        }
+        item {
+            OutlinedTextField(
+                value = state.additionalRequestText,
+                onValueChange = onAdditionalRequestChange,
+                modifier = Modifier.fillMaxWidth(),
+                minLines = 4,
+                label = { Text("追加要望・変更内容") },
+                enabled = !state.busy,
+                supportingText = {
+                    Text("反映すると部品・配線・制御・操作画面を安全検証から再生成します。")
+                },
+            )
+        }
+        item {
+            Button(
+                onClick = onApplyAdditionalRequest,
+                enabled = state.additionalRequestText.isNotBlank() && !state.busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(if (state.busy) "再設計中…" else "追加要望を反映して再設計")
+            }
+        }
+        item {
+            OutlinedButton(
+                onClick = { onOpen(AppScreen.DESIGN) },
+                enabled = !state.busy,
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("変更せず戻る")
             }
         }
     }
