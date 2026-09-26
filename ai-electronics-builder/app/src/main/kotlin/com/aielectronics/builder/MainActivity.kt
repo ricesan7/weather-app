@@ -37,8 +37,24 @@ private fun BuilderAppHost() {
     val repository = remember(context.applicationContext) {
         SqliteProjectRepository(context.applicationContext)
     }
+    val revisionAssistant = remember(
+        BuildConfig.AI_GATEWAY_URL,
+        BuildConfig.AI_GATEWAY_TOKEN,
+    ) {
+        if (BuildConfig.AI_GATEWAY_URL.isBlank()) {
+            LocalRevisionLanguageAssistant()
+        } else {
+            GatewayRevisionLanguageAssistant(
+                endpoint = BuildConfig.AI_GATEWAY_URL,
+                gatewayToken = BuildConfig.AI_GATEWAY_TOKEN,
+            )
+        }
+    }
     val viewModel: BuilderAppViewModel = viewModel(
-        factory = BuilderAppViewModel.Factory(repository)
+        factory = BuilderAppViewModel.Factory(
+            projectRepository = repository,
+            revisionAssistant = revisionAssistant,
+        )
     )
     val state by viewModel.state.collectAsState()
 

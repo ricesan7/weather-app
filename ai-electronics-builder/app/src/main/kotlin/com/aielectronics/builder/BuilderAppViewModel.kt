@@ -34,7 +34,10 @@ class BuilderAppViewModel(
     private val engine: ApplicationProjectEngine = ApplicationProjectEngine(),
     private val frictionTelemetry: FrictionTelemetryRecorder = FrictionTelemetryRecorder(),
     private val projectRepository: ProjectRepository = InMemoryProjectRepository(),
+    private val revisionAssistant: RevisionLanguageAssistant = LocalRevisionLanguageAssistant(),
 ) : ViewModel() {
+
+    private val localRevisionAssistant = LocalRevisionLanguageAssistant()
 
     private val _state = MutableStateFlow(BuilderAppState())
     val state: StateFlow<BuilderAppState> = _state.asStateFlow()
@@ -43,6 +46,9 @@ class BuilderAppViewModel(
     val friction: StateFlow<FrictionSnapshot> = _friction.asStateFlow()
 
     init {
+        _state.update {
+            it.copy(revisionAssistantLabel = revisionAssistant.statusLabel)
+        }
         if (projectRepository is InMemoryProjectRepository) {
             _state.update {
                 it.copy(savedProjects = projectRepository.list())
@@ -61,29 +67,172 @@ class BuilderAppViewModel(
     }
 
     fun applyAdditionalRequest() {
-        val request = _state.value.additionalRequestText.trim()
-        if (request.isBlank()) {
-            _state.update { it.copy(error = "追加したい要望を入力してください。") }
+        val current = _state.value
+        val requestText = current.additionalRequestText.trim()
+        if (requestText.isBlank()) {
+            _state.update { it.copy(error = "追加したい要望や回答を入力してください。") }
             return
         }
-        if (_state.value.projectId == null || _state.value.bundle == null) {
+        if (current.projectId == null || current.bundle == null) {
             _state.update { it.copy(error = "先に設計を作成してください。") }
             return
         }
+        if (current.busy) return
+
+        val userMessage = RevisionChatMessage(
+            id = UUID.randomUUID().toString(),
+            speaker = RevisionSpeaker.USER,
+            text = requestText,
+        )
+        val history = current.revisionMessages + userMessage
+        val candidateGoal =
+            current.revisionCandidateGoalText.ifBlank { current.goalText }
+        val revisedClarifications =
+            current.revisionPendingSlotId?.let { slotId ->
+                current.revisionClarificationValues + (slotId to requestText)
+            } ?: current.revisionClarificationValues
 
         _state.update {
             it.copy(
-                goalText = appendAdditionalRequest(it.goalText, request),
                 additionalRequestText = "",
-                clarificationValues = emptyMap(),
-                deployed = false,
-                connection = null,
-                deployProgress = 0,
-                deployMessage = "追加要望を反映したため、装置への再設定が必要です。",
+                revisionMessages = history,
+                revisionClarificationValues = revisedClarifications,
+                revisionPendingSlotId = null,
+                busy = true,
                 error = null,
             )
         }
-        resolveAndCompile()
+
+        viewModelScope.launch {
+            try {
+                val languageRequest = RevisionLanguageRequest(
+                    currentGoal = candidateGoal,
+                    userMessage = requestText,
+                    history = history,
+                )
+                val primary = withContext(Dispatchers.IO) {
+                    revisionAssistant.refine(languageRequest)
+                }
+                val languageResult =
+                    if (primary.isSuccess) {
+                        primary.getOrThrow()
+                    } else {
+                        val fallback = withContext(Dispatchers.Default) {
+                            localRevisionAssistant.refine(languageRequest).getOrThrow()
+                        }
+                        fallback.copy(
+                            assistantMessage =
+                                "AIゲートウェイへ接続できなかったため、ローカル確認に切り替えました。\n" +
+                                    fallback.assistantMessage,
+                        )
+                    }
+
+                if (languageResult.needsClarification) {
+                    val assistantText = listOf(
+                        languageResult.assistantMessage,
+                        languageResult.clarificationQuestion,
+                    )
+                        .filter { it.isNotBlank() }
+                        .distinct()
+                        .joinToString("\n")
+
+                    _state.update {
+                        it.copy(
+                            busy = false,
+                            revisionCandidateGoalText = languageResult.updatedGoal,
+                            revisionClarificationValues = revisedClarifications,
+                            revisionMessages =
+                                it.revisionMessages + assistantMessage(assistantText),
+                        )
+                    }
+                    return@launch
+                }
+
+                when (
+                    val result = withContext(Dispatchers.Default) {
+                        resolveRevisionCandidate(
+                            goal = languageResult.updatedGoal,
+                            clarifications = revisedClarifications,
+                        )
+                    }
+                ) {
+                    is ResolutionResult.Questions -> {
+                        val question = result.questions.firstOrNull()
+                        if (question == null) {
+                            _state.update {
+                                it.copy(
+                                    busy = false,
+                                    revisionCandidateGoalText = languageResult.updatedGoal,
+                                    revisionMessages =
+                                        it.revisionMessages + assistantMessage(
+                                            languageResult.assistantMessage
+                                        ),
+                                )
+                            }
+                            return@launch
+                        }
+
+                        recordFriction {
+                            recordQuestionPresented(question.slotId)
+                        }
+                        val assistantText = listOf(
+                            languageResult.assistantMessage,
+                            "確認です。" + question.userQuestion,
+                        )
+                            .filter { it.isNotBlank() }
+                            .distinct()
+                            .joinToString("\n")
+
+                        _state.update {
+                            it.copy(
+                                busy = false,
+                                revisionCandidateGoalText = languageResult.updatedGoal,
+                                revisionClarificationValues = revisedClarifications,
+                                revisionPendingSlotId = question.slotId,
+                                revisionMessages =
+                                    it.revisionMessages + assistantMessage(assistantText),
+                            )
+                        }
+                    }
+
+                    is ResolutionResult.Success -> {
+                        commitRevision(
+                            updatedGoal = languageResult.updatedGoal,
+                            clarifications = revisedClarifications,
+                            requirements = result.requirements,
+                            bundle = result.bundle,
+                        )
+                    }
+
+                    is ResolutionResult.Error -> {
+                        val assistantText = listOf(
+                            languageResult.assistantMessage,
+                            result.message,
+                            "条件を修正して続けて入力してください。現在の安全な設計は変更していません。",
+                        )
+                            .filter { it.isNotBlank() }
+                            .joinToString("\n")
+
+                        _state.update {
+                            it.copy(
+                                busy = false,
+                                revisionCandidateGoalText = languageResult.updatedGoal,
+                                revisionClarificationValues = revisedClarifications,
+                                revisionMessages =
+                                    it.revisionMessages + assistantMessage(assistantText),
+                            )
+                        }
+                    }
+                }
+            } catch (throwable: Throwable) {
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        error = throwable.message ?: "追加要望の対話処理に失敗しました。",
+                    )
+                }
+            }
+        }
     }
 
     fun newProject() {
@@ -122,7 +271,27 @@ class BuilderAppViewModel(
                 userInitiated = true,
             )
         }
-        _state.update { it.copy(screen = screen, error = null) }
+        _state.update {
+            if (screen == AppScreen.REVISION && it.revisionMessages.isEmpty()) {
+                it.copy(
+                    screen = screen,
+                    error = null,
+                    additionalRequestText = "",
+                    revisionCandidateGoalText = it.goalText,
+                    revisionClarificationValues = emptyMap(),
+                    revisionPendingSlotId = null,
+                    revisionStatusMessage = "",
+                    revisionMessages = listOf(
+                        assistantMessage(
+                            "追加したい機能や変更したい条件を教えてください。" +
+                                "必要な確認をしながら仕様を固め、揃った時点で自動的に再設計します。"
+                        )
+                    ),
+                )
+            } else {
+                it.copy(screen = screen, error = null)
+            }
+        }
         persistCurrent()
     }
 
@@ -561,7 +730,11 @@ class BuilderAppViewModel(
         val restoredScreen = runCatching {
             AppScreen.valueOf(result.saved.lastScreen)
         }.getOrDefault(AppScreen.DESIGN).let { savedScreen ->
-            if (savedScreen == AppScreen.CONTROL) AppScreen.CONNECT else savedScreen
+            when (savedScreen) {
+                AppScreen.CONTROL -> AppScreen.CONNECT
+                AppScreen.REVISION -> AppScreen.DESIGN
+                else -> savedScreen
+            }
         }
 
         _state.update {
@@ -594,15 +767,99 @@ class BuilderAppViewModel(
         }
     }
 
-    private fun appendAdditionalRequest(
-        currentGoal: String,
-        request: String,
-    ): String =
-        buildString {
-            append(currentGoal.trim())
-            append("\n\n【追加要望】\n")
-            append(request.trim())
+    private fun resolveRevisionCandidate(
+        goal: String,
+        clarifications: Map<String, String>,
+    ): ResolutionResult {
+        val intent = interpreter.interpret(
+            text = goal,
+            clarifications = clarifications,
+        )
+        return when (val resolution = engine.resolve(intent)) {
+            is RequirementResolution.NeedUserInput ->
+                ResolutionResult.Questions(resolution.missing)
+
+            is RequirementResolution.Ready ->
+                when (val compile = engine.compile(resolution.requirements)) {
+                    is CompileResult.Success ->
+                        ResolutionResult.Success(
+                            resolution.requirements,
+                            compile.bundle,
+                        )
+
+                    is CompileResult.NeedUserInput ->
+                        ResolutionResult.Questions(compile.questions)
+
+                    is CompileResult.Blocked ->
+                        ResolutionResult.Error(
+                            BeginnerErrorPresenter.validationBlocked(compile.report)
+                        )
+
+                    is CompileResult.Failed ->
+                        ResolutionResult.Error(
+                            BeginnerErrorPresenter.compileFailure(compile.error)
+                        )
+                }
         }
+    }
+
+    private fun commitRevision(
+        updatedGoal: String,
+        clarifications: Map<String, String>,
+        requirements: ResolvedRequirements,
+        bundle: ReleaseBundle,
+    ) {
+        val previous = _state.value
+        val currentConnectionIds =
+            bundle.circuitGraph.connections.map { it.id }.toSet()
+        val preservedCompleted =
+            previous.completedConnectionIds.intersect(currentConnectionIds)
+        val lastIndex =
+            (bundle.diagramSpec.buildPlan?.steps?.lastIndex ?: 0).coerceAtLeast(0)
+
+        recordFriction {
+            recordScreenTransition(
+                from = AppScreen.REVISION.name,
+                to = AppScreen.DESIGN.name,
+                userInitiated = false,
+            )
+        }
+
+        _state.update {
+            it.copy(
+                busy = false,
+                goalText = updatedGoal,
+                clarificationValues = clarifications,
+                pendingQuestions = emptyList(),
+                requirements = requirements,
+                bundle = bundle,
+                screen = AppScreen.DESIGN,
+                deployed = false,
+                connection = null,
+                deployProgress = 0,
+                deployMessage = "設計を更新したため、装置への再設定が必要です。",
+                completedConnectionIds = preservedCompleted,
+                currentBuildStepIndex =
+                    it.currentBuildStepIndex.coerceIn(0, lastIndex),
+                revisionStatusMessage =
+                    "追加要望を対話で確定し、安全確認を通して設計を更新しました。",
+                revisionMessages = emptyList(),
+                revisionCandidateGoalText = "",
+                revisionClarificationValues = emptyMap(),
+                revisionPendingSlotId = null,
+                additionalRequestText = "",
+                error = null,
+            )
+        }
+        persistCurrent()
+    }
+
+    private fun assistantMessage(text: String): RevisionChatMessage =
+        RevisionChatMessage(
+            id = UUID.randomUUID().toString(),
+            speaker = RevisionSpeaker.ASSISTANT,
+            text = text,
+        )
 
     private fun persistCurrent() {
         val snapshotState = _state.value
@@ -667,12 +924,15 @@ class BuilderAppViewModel(
 
     class Factory(
         private val projectRepository: ProjectRepository,
+        private val revisionAssistant: RevisionLanguageAssistant =
+            LocalRevisionLanguageAssistant(),
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
             require(modelClass.isAssignableFrom(BuilderAppViewModel::class.java))
             return BuilderAppViewModel(
                 projectRepository = projectRepository,
+                revisionAssistant = revisionAssistant,
             ) as T
         }
     }

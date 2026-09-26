@@ -4,6 +4,18 @@ plugins {
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
+fun buildConfigString(value: String): String =
+    "\"" + value.replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
+val aiGatewayUrl = providers.gradleProperty("AI_GATEWAY_URL")
+    .orElse(providers.environmentVariable("AI_GATEWAY_URL"))
+    .orElse("")
+    .get()
+val aiGatewayToken = providers.gradleProperty("AI_GATEWAY_TOKEN")
+    .orElse(providers.environmentVariable("AI_GATEWAY_TOKEN"))
+    .orElse("")
+    .get()
+
 android {
     namespace = "com.aielectronics.builder"
     compileSdk = 35
@@ -14,10 +26,14 @@ android {
         targetSdk = 35
         versionCode = 1
         versionName = "0.1.0"
+
+        buildConfigField("String", "AI_GATEWAY_URL", buildConfigString(aiGatewayUrl))
+        buildConfigField("String", "AI_GATEWAY_TOKEN", buildConfigString(aiGatewayToken))
     }
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
