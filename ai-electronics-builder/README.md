@@ -13,9 +13,9 @@ Target flow:
 3. The system maps intent to capabilities and selects verified components, board and power topology.
 4. Pins are allocated automatically and an authoritative CircuitGraph is compiled.
 5. Deterministic electrical validation must pass.
-6. Behavior rules, runtime-mutable settings, Runtime Manifest and phone UI are generated from the validated design.
-7. The app renders graphical wiring/build steps from CircuitGraph.
-8. The user assembles/solders one connection at a time while viewing the phone.
+6. Behavior rules, runtime-mutable settings, Runtime Manifest and phone UI are generated.
+7. CircuitGraph is compiled into deterministic visual assets, wires and one-connection solder steps.
+8. The user assembles/solders one highlighted connection at a time on the phone.
 9. "Configure device" deploys the manifest/runtime configuration in one guided action.
 10. The same app becomes the control panel, logger, settings UI and diagnostic tool.
 
@@ -26,6 +26,7 @@ Advanced mode uses the same Design IR but exposes generated code, pin mapping, m
 - core-model
   - Design IR / DesignCore / CircuitGraph
   - engineering component/board/power/pin specifications
+  - DiagramSpec / GuidedBuildPlan
 - parts-db
   - engineering catalog abstraction
   - initial Golden reference catalog
@@ -34,24 +35,27 @@ Advanced mode uses the same Design IR but exposes generated code, pin mapping, m
   - CapabilityMapper
   - ComponentResolver / BoardSelector / PowerPlanner
   - PinAllocator / CircuitCompiler / ElectricalValidator
-  - DefaultBehaviorCompiler
-  - DefaultManifestCompiler
-  - DefaultUiCompiler
-  - DefaultDiagnosticCompiler
-  - DefaultProjectCompiler orchestration
+  - Behavior / Manifest / UI / Diagnostic compilers
+- diagram-engine
+  - verified visual asset anchors
+  - CircuitGraph -> DiagramSpec compiler
+  - deterministic Manhattan wire routing
+  - SVG renderer
+- feature-assembly
+  - one-connection guided-build state machine
+  - resume/back/progress
 - runtime-protocol
   - one-action deployment contracts
   - runtime-mutable settings contracts
 
 ## Next implementation targets
 
-- ComponentAssets + verified pin anchors
-- DiagramSpec compiler
-- graphical wiring renderer
-- guided solder-step compiler
-- Android app shell / Compose screens
+- Android app shell / Jetpack Compose screens
+- zoom/pan/selectable wiring view
 - BLE Runtime protocol implementation
 - ESP32-S3 Universal Runtime
+- one-action deploy implementation
+- advanced code editor
 - system regression harness
 
 ## UX release gate
