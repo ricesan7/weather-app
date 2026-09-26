@@ -68,12 +68,16 @@ object CurrentRegressionSupport {
             "manual_override",
             "self_test",
             "failsafe",
+            "multi_component",
+            "derived_values",
         ),
         hardware = setOf(
             "esp32s3",
             "temperature_humidity_sensor",
             "fan_driver",
             "fan",
+            "light_sensor",
+            "barometer",
         ),
     )
 }
