@@ -45,11 +45,53 @@ class SystemRegressionHarnessTest {
     }
 
     @Test
+    fun `multi sensor logger compiles with shared i2c telemetry and one minute logging`() {
+        val result = harness.run(
+            SystemRegressionFixtures.all.single { it.id == "reg_logger_01" }
+        )
+        val compiled = assertIs<RegressionOutcome.Compiled>(result)
+
+        val capabilities = compiled.bundle.designIr.capabilities.map { it.value }.toSet()
+        assertTrue("measure_temperature" in capabilities)
+        assertTrue("measure_humidity" in capabilities)
+        assertTrue("measure_pressure" in capabilities)
+        assertTrue("measure_illuminance" in capabilities)
+
+        assertEquals(3, compiled.bundle.designIr.components.count {
+            it.role.contains("sensor", ignoreCase = true)
+        })
+
+        val logging = requireNotNull(compiled.bundle.designIr.logging)
+        assertEquals(60, logging.intervalSeconds)
+        assertEquals(
+            setOf("temperature", "humidity", "pressure", "illuminance"),
+            logging.channelIds.toSet(),
+        )
+
+        val i2cDataConnections = compiled.bundle.circuitGraph.connections
+            .filter { it.netType.name == "I2C_SDA" }
+        val i2cClockConnections = compiled.bundle.circuitGraph.connections
+            .filter { it.netType.name == "I2C_SCL" }
+        assertEquals(3, i2cDataConnections.size)
+        assertEquals(3, i2cClockConnections.size)
+
+        val telemetry = requireNotNull(compiled.bundle.manifest).telemetryIds.toSet()
+        assertTrue("pressure" in telemetry)
+        assertTrue("illuminance" in telemetry)
+        assertTrue(compiled.bundle.uiSpec.pages.any { page ->
+            page.widgets.any { widget -> widget.binding == "telemetry.pressure" }
+        })
+        assertTrue(compiled.bundle.uiSpec.pages.any { page ->
+            page.widgets.any { widget -> widget.binding == "telemetry.illuminance" }
+        })
+    }
+
+    @Test
     fun `unsupported fixtures expose exactly what is missing`() {
         val results = harness.runAll()
             .filterIsInstance<RegressionOutcome.Unsupported>()
 
-        assertEquals(7, results.size)
+        assertEquals(6, results.size)
 
         val irrigation = results.single {
             it.fixture.id == "reg_irrigation_01"
