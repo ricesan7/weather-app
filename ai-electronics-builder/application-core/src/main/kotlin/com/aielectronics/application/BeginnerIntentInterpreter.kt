@@ -31,6 +31,10 @@ class BeginnerIntentInterpreter {
             facts["logging_requested"] = "true"
         }
 
+        loggingIntervalSeconds(normalized)?.let { seconds ->
+            facts["logging_interval_seconds"] = seconds.toString()
+        }
+
         temperatureThreshold(normalized)?.let { value ->
             facts["temp_on"] = formatNumber(value)
             if (!normalized.containsExplicitOffThreshold()) {
@@ -92,6 +96,38 @@ class BeginnerIntentInterpreter {
         return patterns.firstNotNullOfOrNull { regex ->
             regex.find(text)?.groupValues?.getOrNull(1)?.toDoubleOrNull()
         }
+    }
+
+    private fun loggingIntervalSeconds(text: String): Int? {
+        val japanese = Regex(
+            """(\d+)\s*(秒|分|時間)\s*(?:ごと|毎|おき)""",
+            RegexOption.IGNORE_CASE,
+        ).find(text)
+
+        if (japanese != null) {
+            val amount = japanese.groupValues[1].toIntOrNull() ?: return null
+            val multiplier = when (japanese.groupValues[2]) {
+                "秒" -> 1
+                "分" -> 60
+                "時間" -> 3600
+                else -> 1
+            }
+            return amount * multiplier
+        }
+
+        val english = Regex(
+            """every\s+(\d+)\s*(second|seconds|minute|minutes|hour|hours)""",
+            RegexOption.IGNORE_CASE,
+        ).find(text) ?: return null
+
+        val amount = english.groupValues[1].toIntOrNull() ?: return null
+        val multiplier = when (english.groupValues[2].lowercase()) {
+            "second", "seconds" -> 1
+            "minute", "minutes" -> 60
+            "hour", "hours" -> 3600
+            else -> 1
+        }
+        return amount * multiplier
     }
 
     private fun String.containsExplicitOffThreshold(): Boolean =
