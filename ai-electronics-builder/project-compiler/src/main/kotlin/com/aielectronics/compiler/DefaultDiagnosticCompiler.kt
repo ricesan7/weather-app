@@ -9,7 +9,7 @@ class DefaultDiagnosticCompiler : DiagnosticCompiler {
         val diagnostics = mutableListOf<DiagnosticSpec>()
         val capabilities = core.capabilities.map { it.value }.toSet()
 
-        if ("measure_temperature" in capabilities || "measure_humidity" in capabilities) {
+        if (capabilities.any { it.startsWith("measure_") || it.startsWith("sense_") }) {
             tests += TestSpec(
                 id = "sensor_probe",
                 name = "センサー確認",
