@@ -96,15 +96,19 @@ class DefaultUiCompiler : UiCompiler {
         UiSpec(pages)
     }
 
-    private fun settingWidget(setting: ProjectSetting): UiWidget? =
-        when (setting.type) {
-            SettingType.NUMBER -> UiWidget.Slider(
-                id = setting.id,
-                binding = "settings." + setting.id,
-                min = setting.constraints.min ?: return null,
-                max = setting.constraints.max ?: return null,
-                step = setting.constraints.step ?: 1.0,
-            )
+    private fun settingWidget(setting: ProjectSetting): UiWidget? {
+        return when (setting.type) {
+            SettingType.NUMBER -> {
+                val min = setting.constraints.min ?: return null
+                val max = setting.constraints.max ?: return null
+                UiWidget.Slider(
+                    id = setting.id,
+                    binding = "settings." + setting.id,
+                    min = min,
+                    max = max,
+                    step = setting.constraints.step ?: 1.0,
+                )
+            }
 
             SettingType.BOOLEAN -> UiWidget.Toggle(
                 id = setting.id,
@@ -119,4 +123,5 @@ class DefaultUiCompiler : UiCompiler {
 
             else -> null
         }
+    }
 }
