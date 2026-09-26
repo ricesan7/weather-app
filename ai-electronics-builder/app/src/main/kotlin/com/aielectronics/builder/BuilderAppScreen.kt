@@ -48,6 +48,7 @@ fun BuilderAppScreen(
     onConnect: () -> Unit,
     onDeploy: () -> Unit,
     onBuildStepCompleted: (String?) -> Unit,
+    onOpenBuildStep: (Int) -> Unit,
     onClearError: () -> Unit,
 ) {
     Column(
@@ -83,7 +84,11 @@ fun BuilderAppScreen(
                 onDeploy = onDeploy,
                 onOpen = onOpen,
             )
-            AppScreen.CONTROL -> ControlScreen(state, onOpen)
+            AppScreen.CONTROL -> ControlScreen(
+                state = state,
+                onOpen = onOpen,
+                onOpenBuildStep = onOpenBuildStep,
+            )
         }
     }
 }
@@ -355,8 +360,17 @@ private fun BuildScreen(
 ) {
     val bundle = state.bundle ?: return
     val plan = bundle.diagramSpec.buildPlan ?: return
-    val machine = remember(plan) { GuidedBuildStateMachine(plan) }
-    var buildState by remember(plan) { mutableStateOf(machine.state()) }
+    val targetOrder = state.buildTargetStepOrder
+    val machine = remember(plan, targetOrder) {
+        GuidedBuildStateMachine(plan).also { stateMachine ->
+            if (targetOrder != null && targetOrder in 1..plan.steps.size) {
+                stateMachine.goToStep(targetOrder)
+            }
+        }
+    }
+    var buildState by remember(plan, targetOrder) {
+        mutableStateOf(machine.state())
+    }
 
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         LinearProgressIndicator(
@@ -474,6 +488,7 @@ private fun ConnectScreen(
 private fun ControlScreen(
     state: BuilderAppState,
     onOpen: (AppScreen) -> Unit,
+    onOpenBuildStep: (Int) -> Unit,
 ) {
     val bundle = state.bundle ?: return
     val connection = state.connection
@@ -495,6 +510,9 @@ private fun ControlScreen(
         transport = connection.transport,
         uiSpec = bundle.uiSpec,
         tests = bundle.testPlan.tests,
+        diagnostics = bundle.designIr.diagnostics,
+        diagramSpec = bundle.diagramSpec,
+        onOpenBuildStep = onOpenBuildStep,
         modifier = Modifier.fillMaxSize(),
     )
 }

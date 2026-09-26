@@ -3,8 +3,11 @@ package com.aielectronics.control
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
+import com.aielectronics.core.model.DiagnosticSpec
+import com.aielectronics.core.model.DiagramSpec
 import com.aielectronics.core.model.TestSpec
 import com.aielectronics.core.model.UiSpec
+import com.aielectronics.diagnostics.DiagnosticCorrelator
 import com.aielectronics.runtime.RuntimeTransport
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -19,9 +22,12 @@ class RuntimeDashboardViewModel(
     transport: RuntimeTransport,
     private val uiSpec: UiSpec,
     tests: List<TestSpec>,
+    private val diagnostics: List<DiagnosticSpec> = emptyList(),
+    private val diagramSpec: DiagramSpec? = null,
 ) : ViewModel() {
 
     private val client = RuntimeControlClient(transport)
+    private val correlator = DiagnosticCorrelator()
     private val historySequence = AtomicLong(1)
 
     private val _state = MutableStateFlow(
@@ -114,6 +120,7 @@ class RuntimeDashboardViewModel(
         _state.update {
             it.copy(
                 testResults = it.testResults + (testId to TestRunState.RUNNING),
+                diagnosticFindings = it.diagnosticFindings - testId,
                 lastError = null,
             )
         }
@@ -124,6 +131,17 @@ class RuntimeDashboardViewModel(
                     client.runTest(testId)
                 }
             }.onSuccess { passed ->
+                val finding =
+                    if (!passed && diagramSpec != null) {
+                        correlator.correlateTestFailure(
+                            testId = testId,
+                            diagnostics = diagnostics,
+                            diagramSpec = diagramSpec,
+                        )
+                    } else {
+                        null
+                    }
+
                 _state.update {
                     it.copy(
                         connection = DeviceConnectionState.CONNECTED,
@@ -134,6 +152,11 @@ class RuntimeDashboardViewModel(
                                 TestRunState.FAILED
                             }
                         ),
+                        diagnosticFindings = when {
+                            passed -> it.diagnosticFindings - testId
+                            finding != null -> it.diagnosticFindings + (testId to finding)
+                            else -> it.diagnosticFindings
+                        },
                     )
                 }
             }.onFailure { throwable ->
@@ -182,6 +205,8 @@ class RuntimeDashboardViewModel(
         private val transport: RuntimeTransport,
         private val uiSpec: UiSpec,
         private val tests: List<TestSpec>,
+        private val diagnostics: List<DiagnosticSpec> = emptyList(),
+        private val diagramSpec: DiagramSpec? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -190,6 +215,8 @@ class RuntimeDashboardViewModel(
                 transport = transport,
                 uiSpec = uiSpec,
                 tests = tests,
+                diagnostics = diagnostics,
+                diagramSpec = diagramSpec,
             ) as T
         }
     }

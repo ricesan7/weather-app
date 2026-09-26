@@ -22,6 +22,7 @@ include(
     ":parts-db",
     ":project-compiler",
     ":diagram-engine",
+    ":diagnostics",
     ":feature-assembly",
     ":feature-control",
     ":runtime-protocol",

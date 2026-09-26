@@ -20,14 +20,13 @@ class DefaultDiagnosticCompiler : DiagnosticCompiler {
                 id = "diag_sensor_missing",
                 trigger = "sensor_probe_failed",
                 likelyCauses = listOf(
-                    "VDD/GNDの接続",
-                    "SDA/SCLの接続",
+                    "センサーの電源線",
+                    "センサーのGND",
+                    "SDA/SCLの配線",
                     "I2Cアドレス設定",
                 ),
-                buildStepIds = listOf(
-                    "connection:sensor_power",
-                    "connection:i2c",
-                ),
+                buildStepIds = sensorConnectionIds(core)
+                    .map { "connection:" + it },
             )
         }
 
@@ -45,13 +44,10 @@ class DefaultDiagnosticCompiler : DiagnosticCompiler {
                     "5V外部電源",
                     "共通GND",
                     "ドライバ入力/出力",
-                    "ファン極性",
+                    "ファンの極性",
                 ),
-                buildStepIds = listOf(
-                    "connection:fan_power",
-                    "connection:driver",
-                    "connection:common_ground",
-                ),
+                buildStepIds = fanConnectionIds(core)
+                    .map { "connection:" + it },
             )
         }
 
@@ -59,5 +55,70 @@ class DefaultDiagnosticCompiler : DiagnosticCompiler {
             testPlan = TestPlan(tests),
             diagnostics = diagnostics,
         )
+    }
+
+    private fun sensorConnectionIds(core: DesignCore): List<String> {
+        val sensorIds = core.components
+            .filter { instance ->
+                instance.role.contains("sensor", ignoreCase = true) ||
+                    instance.role.contains("temperature", ignoreCase = true) ||
+                    instance.role.contains("humidity", ignoreCase = true) ||
+                    instance.componentId.contains("sht", ignoreCase = true) ||
+                    instance.componentId.contains("bme", ignoreCase = true)
+            }
+            .map { it.instanceId }
+            .toSet()
+
+        return core.connections
+            .filter { connection ->
+                connection.from.entityId in sensorIds ||
+                    connection.to.entityId in sensorIds ||
+                    connection.netType == NetType.I2C_SDA ||
+                    connection.netType == NetType.I2C_SCL
+            }
+            .map { it.id }
+            .distinct()
+    }
+
+    private fun fanConnectionIds(core: DesignCore): List<String> {
+        val fanIds = core.components
+            .filter { instance ->
+                instance.role.contains("fan", ignoreCase = true) ||
+                    instance.role.contains("ventilation", ignoreCase = true) ||
+                    instance.componentId.contains("fan", ignoreCase = true) ||
+                    instance.componentId.contains("ydm", ignoreCase = true)
+            }
+            .map { it.instanceId }
+            .toSet()
+
+        val driverIds = core.components
+            .filter { instance ->
+                instance.role.contains("driver", ignoreCase = true) ||
+                    instance.componentId.contains("tbd", ignoreCase = true)
+            }
+            .map { it.instanceId }
+            .toSet()
+
+        val powerSourceIds = core.power.sources.map { it.id }.toSet()
+        val relatedIds = fanIds + driverIds
+
+        return core.connections
+            .filter { connection ->
+                connection.from.entityId in relatedIds ||
+                    connection.to.entityId in relatedIds ||
+                    (
+                        connection.netType == NetType.GROUND &&
+                            (
+                                connection.from.entityId in powerSourceIds ||
+                                    connection.to.entityId in powerSourceIds
+                            ) &&
+                            (
+                                connection.from.entityId == core.board.boardId ||
+                                    connection.to.entityId == core.board.boardId
+                            )
+                    )
+            }
+            .map { it.id }
+            .distinct()
     }
 }
