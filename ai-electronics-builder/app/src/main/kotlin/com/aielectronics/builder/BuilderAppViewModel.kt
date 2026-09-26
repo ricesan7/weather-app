@@ -6,6 +6,8 @@ import androidx.lifecycle.viewModelScope
 import com.aielectronics.application.ApplicationProjectEngine
 import com.aielectronics.application.BeginnerErrorPresenter
 import com.aielectronics.application.BeginnerIntentInterpreter
+import com.aielectronics.application.FrictionSnapshot
+import com.aielectronics.application.FrictionTelemetryRecorder
 import com.aielectronics.ble.android.AndroidBleRuntimeConnector
 import com.aielectronics.compiler.CompileResult
 import com.aielectronics.compiler.RequirementResolution
@@ -22,10 +24,14 @@ import kotlinx.coroutines.withContext
 class BuilderAppViewModel(
     private val interpreter: BeginnerIntentInterpreter = BeginnerIntentInterpreter(),
     private val engine: ApplicationProjectEngine = ApplicationProjectEngine(),
+    private val frictionTelemetry: FrictionTelemetryRecorder = FrictionTelemetryRecorder(),
 ) : ViewModel() {
 
     private val _state = MutableStateFlow(BuilderAppState())
     val state: StateFlow<BuilderAppState> = _state.asStateFlow()
+
+    private val _friction = MutableStateFlow(frictionTelemetry.snapshot())
+    val friction: StateFlow<FrictionSnapshot> = _friction.asStateFlow()
 
     fun setGoal(text: String) {
         _state.update { it.copy(goalText = text) }
@@ -37,6 +43,7 @@ class BuilderAppViewModel(
             _state.update { it.copy(error = "作りたいものを入力してください。") }
             return
         }
+        recordFriction { recordGoalSubmitted() }
         resolveAndCompile()
     }
 
@@ -48,15 +55,30 @@ class BuilderAppViewModel(
                 error = null,
             )
         }
+        recordFriction { recordQuestionAnswered(slotId) }
         resolveAndCompile()
     }
 
     fun open(screen: AppScreen) {
+        val from = _state.value.screen
+        recordFriction {
+            recordScreenTransition(
+                from = from.name,
+                to = screen.name,
+                userInitiated = true,
+            )
+        }
         _state.update { it.copy(screen = screen, error = null) }
+    }
+
+    fun confirmBuildStep(connectionId: String? = null) {
+        recordFriction { recordGuidedBuildConfirmation(connectionId) }
     }
 
     fun connect(context: Context) {
         if (_state.value.busy) return
+
+        recordFriction { recordDeviceConnectAction() }
 
         _state.update {
             it.copy(
@@ -107,6 +129,8 @@ class BuilderAppViewModel(
 
         if (current.busy) return
 
+        recordFriction { recordDeployAction() }
+
         _state.update {
             it.copy(
                 busy = true,
@@ -148,6 +172,14 @@ class BuilderAppViewModel(
                     }
                 }
             }.onSuccess {
+                val from = _state.value.screen
+                recordFriction {
+                    recordScreenTransition(
+                        from = from.name,
+                        to = AppScreen.CONTROL.name,
+                        userInitiated = false,
+                    )
+                }
                 _state.update {
                     it.copy(
                         busy = false,
@@ -218,22 +250,39 @@ class BuilderAppViewModel(
                 }
             }.onSuccess { result ->
                 when (result) {
-                    is ResolutionResult.Questions -> _state.update {
-                        it.copy(
-                            busy = false,
-                            pendingQuestions = result.questions,
-                            screen = AppScreen.HOME,
-                        )
+                    is ResolutionResult.Questions -> {
+                        result.questions.firstOrNull()?.let { question ->
+                            recordFriction {
+                                recordQuestionPresented(question.slotId)
+                            }
+                        }
+                        _state.update {
+                            it.copy(
+                                busy = false,
+                                pendingQuestions = result.questions,
+                                screen = AppScreen.HOME,
+                            )
+                        }
                     }
 
-                    is ResolutionResult.Success -> _state.update {
-                        it.copy(
-                            busy = false,
-                            pendingQuestions = emptyList(),
-                            requirements = result.requirements,
-                            bundle = result.bundle,
-                            screen = AppScreen.DESIGN,
-                        )
+                    is ResolutionResult.Success -> {
+                        val from = _state.value.screen
+                        recordFriction {
+                            recordScreenTransition(
+                                from = from.name,
+                                to = AppScreen.DESIGN.name,
+                                userInitiated = false,
+                            )
+                        }
+                        _state.update {
+                            it.copy(
+                                busy = false,
+                                pendingQuestions = emptyList(),
+                                requirements = result.requirements,
+                                bundle = result.bundle,
+                                screen = AppScreen.DESIGN,
+                            )
+                        }
                     }
 
                     is ResolutionResult.Error -> _state.update {
@@ -252,6 +301,13 @@ class BuilderAppViewModel(
                 }
             }
         }
+    }
+
+    private fun recordFriction(
+        action: FrictionTelemetryRecorder.() -> Unit,
+    ) {
+        frictionTelemetry.action()
+        _friction.value = frictionTelemetry.snapshot()
     }
 
     private fun updateDeploy(progress: Int, message: String) {

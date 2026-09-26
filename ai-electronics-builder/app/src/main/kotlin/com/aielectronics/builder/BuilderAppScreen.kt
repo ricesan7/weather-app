@@ -47,6 +47,7 @@ fun BuilderAppScreen(
     onOpen: (AppScreen) -> Unit,
     onConnect: () -> Unit,
     onDeploy: () -> Unit,
+    onBuildStepCompleted: (String?) -> Unit,
     onClearError: () -> Unit,
 ) {
     Column(
@@ -71,7 +72,11 @@ fun BuilderAppScreen(
             AppScreen.DESIGN -> DesignScreen(state, onOpen)
             AppScreen.PARTS -> PartsScreen(state, onOpen)
             AppScreen.WIRING -> WiringScreen(state, onOpen)
-            AppScreen.BUILD -> BuildScreen(state, onOpen)
+            AppScreen.BUILD -> BuildScreen(
+                state = state,
+                onOpen = onOpen,
+                onBuildStepCompleted = onBuildStepCompleted,
+            )
             AppScreen.CONNECT -> ConnectScreen(
                 state = state,
                 onConnect = onConnect,
@@ -346,6 +351,7 @@ private fun WiringScreen(
 private fun BuildScreen(
     state: BuilderAppState,
     onOpen: (AppScreen) -> Unit,
+    onBuildStepCompleted: (String?) -> Unit,
 ) {
     val bundle = state.bundle ?: return
     val plan = bundle.diagramSpec.buildPlan ?: return
@@ -379,7 +385,13 @@ private fun BuildScreen(
                     Text("前へ")
                 }
                 Button(
-                    onClick = { buildState = machine.markCurrentCompleted() },
+                    onClick = {
+                        val connectionId = buildState.currentStep?.connectionId
+                        buildState = machine.markCurrentCompleted()
+                        if (connectionId != null) {
+                            onBuildStepCompleted(connectionId)
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                 ) {
                     Text("接続済み")
