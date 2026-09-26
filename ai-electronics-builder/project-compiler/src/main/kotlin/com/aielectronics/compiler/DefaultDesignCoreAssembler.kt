@@ -11,11 +11,11 @@ class DefaultDesignCoreAssembler : DesignCoreAssembler {
         board: BoardSelection,
         components: ResolvedComponents,
         circuitGraph: CircuitGraph,
-        behavior: BehaviorGraph,
+        behavior: BehaviorCompilation,
         validation: ValidationReport,
     ): Result<DesignCore> = runCatching {
         val projectId = requirements.slots["project_id"]?.value
-            ?: "project_${requirements.goal.hashCode().absoluteValue.toString(16)}"
+            ?: "project_" + requirements.goal.hashCode().absoluteValue.toString(16)
 
         val projectName = requirements.slots["project_name"]?.value
             ?: requirements.goal.take(40)
@@ -46,10 +46,10 @@ class DefaultDesignCoreAssembler : DesignCoreAssembler {
             power = circuitGraph.power,
             components = components.components,
             connections = circuitGraph.connections,
-            behavior = behavior,
-            settings = emptyList(),
-            logging = null,
-            events = emptyList(),
+            behavior = behavior.graph,
+            settings = behavior.settings,
+            logging = behavior.logging,
+            events = behavior.events,
             assembly = AssemblySpec(
                 mode = assemblyMode,
                 stepIds = emptyList(),

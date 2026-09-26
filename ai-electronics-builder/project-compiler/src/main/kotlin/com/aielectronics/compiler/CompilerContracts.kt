@@ -66,7 +66,10 @@ interface ElectricalValidator {
 }
 
 interface BehaviorCompiler {
-    fun compile(requirements: ResolvedRequirements, capabilities: CapabilitySet): Result<BehaviorGraph>
+    fun compile(
+        requirements: ResolvedRequirements,
+        capabilities: CapabilitySet,
+    ): Result<BehaviorCompilation>
 }
 
 interface DesignCoreAssembler {
@@ -76,7 +79,7 @@ interface DesignCoreAssembler {
         board: BoardSelection,
         components: ResolvedComponents,
         circuitGraph: CircuitGraph,
-        behavior: BehaviorGraph,
+        behavior: BehaviorCompilation,
         validation: ValidationReport,
     ): Result<DesignCore>
 }

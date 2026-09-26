@@ -28,9 +28,16 @@ class DefaultProjectCompilerTest {
                 override fun compile(
                     requirements: ResolvedRequirements,
                     capabilities: CapabilitySet,
-                ): Result<BehaviorGraph> {
+                ): Result<BehaviorCompilation> {
                     behaviorCalled = true
-                    return Result.success(BehaviorGraph(failsafe = emptyList()))
+                    return Result.success(
+                        BehaviorCompilation(
+                            graph = BehaviorGraph(failsafe = emptyList()),
+                            settings = emptyList(),
+                            logging = null,
+                            events = emptyList(),
+                        )
+                    )
                 }
             },
         )
@@ -68,8 +75,15 @@ class DefaultProjectCompilerTest {
             override fun compile(
                 requirements: ResolvedRequirements,
                 capabilities: CapabilitySet,
-            ): Result<BehaviorGraph> =
-                Result.success(BehaviorGraph(failsafe = emptyList()))
+            ): Result<BehaviorCompilation> =
+                Result.success(
+                    BehaviorCompilation(
+                        graph = BehaviorGraph(failsafe = emptyList()),
+                        settings = emptyList(),
+                        logging = null,
+                        events = emptyList(),
+                    )
+                )
         },
     ): DefaultProjectCompiler {
         val board = BoardSelection("xiao_esp32s3", setOf(TransportKind.BLE))
