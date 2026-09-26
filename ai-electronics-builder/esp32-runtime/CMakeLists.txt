@@ -10,6 +10,8 @@ add_library(ai_electronics_runtime
     src/Expression.cpp
     src/RuntimeCore.cpp
     src/Protocol.cpp
+    src/BlePacket.cpp
+    src/BleRuntimeBridge.cpp
 )
 
 target_include_directories(ai_electronics_runtime PUBLIC include)
