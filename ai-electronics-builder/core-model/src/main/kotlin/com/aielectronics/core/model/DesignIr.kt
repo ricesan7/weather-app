@@ -88,7 +88,7 @@ data class Connection(
     val voltageV: Double? = null,
 )
 
-enum class NetType { POWER, GROUND, DIGITAL, ANALOG, I2C_SDA, I2C_SCL, SPI, UART, CONTROL, OTHER }
+enum class NetType { POWER, GROUND, DIGITAL, ANALOG, I2C_SDA, I2C_SCL, SPI, UART, CONTROL, LOAD, OTHER }
 enum class WireSemantic { POWER_POSITIVE, GROUND, SIGNAL, CONTROL, ADDRESS, OTHER }
 
 data class BehaviorGraph(

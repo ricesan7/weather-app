@@ -9,7 +9,14 @@ data class ValidationReport(
 
 data class CapabilitySet(val values: Set<CapabilityId>)
 data class ResolvedComponents(val components: List<ComponentInstance>)
-data class PinAssignment(val logicalRole: String, val pin: PinRef)
+
+data class PinAssignment(
+    val logicalRole: String,
+    val pin: PinRef,
+    val target: PinRef? = null,
+    val netType: NetType = NetType.DIGITAL,
+    val wireSemantic: WireSemantic = WireSemantic.SIGNAL,
+)
 
 data class CircuitGraph(
     val board: BoardSelection,
@@ -56,12 +63,6 @@ data class DiagnosticBundle(
     val diagnostics: List<DiagnosticSpec>,
 )
 
-/**
- * Validated electrical/behavioral design before presentation/deployment artifacts are derived.
- *
- * This removes the circular dependency that would otherwise exist if UiCompiler,
- * ManifestCompiler and DiagnosticCompiler all required a fully-finalized DesignIr.
- */
 data class DesignCore(
     val schemaVersion: String,
     val project: ProjectInfo,

@@ -27,10 +27,56 @@ enum class SupplyRole {
     NONE,
 }
 
+enum class BoardPinCapability {
+    DIGITAL_OUT,
+    PWM,
+    I2C_SDA,
+    I2C_SCL,
+    POWER_3V3,
+    POWER_5V,
+    GND,
+}
+
+enum class ComponentPinRole {
+    VCC,
+    GND,
+    I2C_SDA,
+    I2C_SCL,
+    ADDRESS,
+    CONTROL_INPUT,
+    LOAD_OUTPUT,
+    CLAMP_COMMON,
+    POSITIVE,
+    NEGATIVE,
+}
+
 data class VoltageRange(
     val minV: Double,
     val typicalV: Double,
     val maxV: Double,
+)
+
+data class BoardPinSpec(
+    val pinId: String,
+    val label: String,
+    val gpioNumber: Int? = null,
+    val capabilities: Set<BoardPinCapability>,
+    val allocationPriority: Int = 0,
+)
+
+data class ComponentPinSpec(
+    val pinId: String,
+    val label: String,
+    val role: ComponentPinRole,
+)
+
+data class SignalRequirement(
+    val id: String,
+    val boardCapability: BoardPinCapability,
+    val componentPinRole: ComponentPinRole,
+    val netType: NetType,
+    val wireSemantic: WireSemantic,
+    val shareable: Boolean = false,
 )
 
 data class ComponentSpec(
@@ -50,6 +96,12 @@ data class ComponentSpec(
     val driverId: String? = null,
     val designReady: Boolean = false,
     val engineeringPriority: Int = 0,
+    val pins: List<ComponentPinSpec> = emptyList(),
+    val signalRequirements: List<SignalRequirement> = emptyList(),
+    val i2cAddress: String? = null,
+    val maxLoadCurrentMa: Double? = null,
+    val minInputHighVoltageV: Double? = null,
+    val sourceIds: Set<String> = emptySet(),
 )
 
 data class BoardSpec(
@@ -61,6 +113,8 @@ data class BoardSpec(
     val providedRailsV: Set<Double>,
     val designReady: Boolean,
     val beginnerPriority: Int,
+    val pins: List<BoardPinSpec> = emptyList(),
+    val sourceIds: Set<String> = emptySet(),
 )
 
 data class PowerSupplySpec(
@@ -72,4 +126,5 @@ data class PowerSupplySpec(
     val polarity: Polarity,
     val designReady: Boolean,
     val engineeringPriority: Int,
+    val sourceIds: Set<String> = emptySet(),
 )
