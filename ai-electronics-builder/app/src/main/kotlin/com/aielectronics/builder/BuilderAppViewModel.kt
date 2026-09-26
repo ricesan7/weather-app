@@ -43,7 +43,13 @@ class BuilderAppViewModel(
     val friction: StateFlow<FrictionSnapshot> = _friction.asStateFlow()
 
     init {
-        refreshSavedProjects()
+        if (projectRepository is InMemoryProjectRepository) {
+            _state.update {
+                it.copy(savedProjects = projectRepository.list())
+            }
+        } else {
+            refreshSavedProjects()
+        }
     }
 
     fun setGoal(text: String) {
