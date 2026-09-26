@@ -345,6 +345,11 @@ private fun DesignScreen(
                 InfoCard("保存", "このプロジェクトは端末に自動保存されています")
             }
         }
+        if (state.revisionStatusMessage.isNotBlank()) {
+            item {
+                InfoCard("更新", state.revisionStatusMessage)
+            }
+        }
         item {
             InfoCard(
                 "自動生成",
@@ -406,26 +411,53 @@ private fun RevisionScreen(
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             Text(
-                "現在の設計に追加したいことや、変更したい条件を自然な言葉で入力してください。",
+                "AIと会話しながら追加機能や条件変更を整理します。仕様が揃うと自動で再設計します。",
                 style = MaterialTheme.typography.bodyMedium,
             )
+            if (state.revisionAssistantLabel.isNotBlank()) {
+                Text(
+                    state.revisionAssistantLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                )
+            }
         }
-        item {
-            InfoCard(
-                "現在の要件",
-                state.goalText,
-            )
+
+        items(
+            items = state.revisionMessages,
+            key = { it.id },
+        ) { message ->
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(12.dp),
+                    verticalArrangement = Arrangement.spacedBy(4.dp),
+                ) {
+                    Text(
+                        if (message.speaker == RevisionSpeaker.USER) "あなた" else "設計アシスタント",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                    Text(message.text)
+                }
+            }
         }
+
         item {
             OutlinedTextField(
                 value = state.additionalRequestText,
                 onValueChange = onAdditionalRequestChange,
                 modifier = Modifier.fillMaxWidth(),
-                minLines = 4,
-                label = { Text("追加要望・変更内容") },
+                minLines = 2,
+                label = {
+                    Text(
+                        if (state.revisionPendingSlotId == null) {
+                            "追加要望・変更内容・回答"
+                        } else {
+                            "質問への回答"
+                        }
+                    )
+                },
                 enabled = !state.busy,
                 supportingText = {
-                    Text("反映すると部品・配線・制御・操作画面を安全検証から再生成します。")
+                    Text("GPIOや配線はAIに決めさせず、決定論的な安全検証で確定します。")
                 },
             )
         }
@@ -435,16 +467,28 @@ private fun RevisionScreen(
                 enabled = state.additionalRequestText.isNotBlank() && !state.busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(if (state.busy) "再設計中…" else "追加要望を反映して再設計")
+                Text(if (state.busy) "確認中…" else "送信")
             }
         }
+
+        val candidate =
+            state.revisionCandidateGoalText.ifBlank { state.goalText }
+        if (candidate.isNotBlank()) {
+            item {
+                InfoCard(
+                    "対話中の仕様",
+                    candidate,
+                )
+            }
+        }
+
         item {
             OutlinedButton(
                 onClick = { onOpen(AppScreen.DESIGN) },
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("変更せず戻る")
+                Text("設計へ戻る（会話は保持）")
             }
         }
     }
