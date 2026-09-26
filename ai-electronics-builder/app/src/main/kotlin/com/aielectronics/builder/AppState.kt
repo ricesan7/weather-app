@@ -14,6 +14,7 @@ enum class AppScreen {
     CONNECT,
     CONTROL,
     EDITOR,
+    BENCH,
 }
 
 data class BuilderAppState(

@@ -1,19 +1,15 @@
 plugins {
-    id("com.android.application")
+    id("com.android.library")
     kotlin("android")
     id("org.jetbrains.kotlin.plugin.compose")
 }
 
 android {
-    namespace = "com.aielectronics.builder"
+    namespace = "com.aielectronics.bench"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.aielectronics.builder"
         minSdk = 26
-        targetSdk = 35
-        versionCode = 1
-        versionName = "0.1.0"
     }
 
     buildFeatures {
@@ -24,10 +20,6 @@ android {
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
-
-    packaging {
-        resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
-    }
 }
 
 kotlin {
@@ -35,22 +27,11 @@ kotlin {
 }
 
 dependencies {
-    implementation(project(":application-core"))
     implementation(project(":core-model"))
-    implementation(project(":parts-db"))
-    implementation(project(":project-compiler"))
-    implementation(project(":diagram-engine"))
-    implementation(project(":feature-assembly"))
-    implementation(project(":feature-bench"))
-    implementation(project(":feature-control"))
-    implementation(project(":feature-editor"))
     implementation(project(":runtime-protocol"))
-    implementation(project(":transport-ble"))
-    implementation(project(":transport-ble-android"))
 
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
-    implementation("androidx.activity:activity-compose:1.10.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
@@ -58,5 +39,14 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-viewmodel-ktx:2.8.7")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
-    testImplementation(kotlin("test-junit"))
+    testImplementation(project(":application-core"))
+    testImplementation(project(":project-compiler"))
+    testImplementation(project(":parts-db"))
+    testImplementation(project(":diagram-engine"))
+    testImplementation(kotlin("test-junit5"))
+    testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.11.3")
+}
+
+tasks.withType<Test>().configureEach {
+    useJUnitPlatform()
 }
