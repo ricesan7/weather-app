@@ -82,4 +82,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     testImplementation(kotlin("test-junit"))
+    testImplementation("org.json:json:20240303")
 }
