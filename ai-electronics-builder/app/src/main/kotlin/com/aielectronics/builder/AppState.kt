@@ -53,6 +53,9 @@ data class BuilderAppState(
     val base44BridgeStatus: String = "",
     val base44BridgeOnline: Boolean = false,
     val bridgeLastSyncAtEpochMs: Long? = null,
+    val base44HandoffRevision: Int? = null,
+    val base44HandoffStatus: String = "",
+    val base44HandoffMessage: String = "",
     val selectedGraphNodeId: String? = null,
     val graphNodePositions: Map<String, SavedGraphNodePosition> = emptyMap(),
     val graphLayoutUndoStack:
