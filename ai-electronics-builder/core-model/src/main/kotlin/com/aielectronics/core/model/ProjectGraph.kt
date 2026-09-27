@@ -25,6 +25,11 @@ data class ProjectGraphLane(
     val order: Int,
 )
 
+data class ProjectGraphPosition(
+    val x: Double,
+    val y: Double,
+)
+
 data class ProjectGraphNode(
     val id: String,
     val label: String,
