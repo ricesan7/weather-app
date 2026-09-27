@@ -50,8 +50,6 @@ object RequestedComponentExtractor {
                     "parts",
                     "マイコン",
                     "board",
-                    "電源",
-                    "power",
                 ) ||
                     label.containsAny(
                         "センサー",
@@ -104,6 +102,8 @@ object RequestedComponentExtractor {
     ) {
         val cleaned = rawName
             .replace(Regex("""\s*\([^)]*\)\s*$"""), "")
+            .replace(Regex("""\s*[×xX]\s*\d+\s*$"""), "")
+            .replace(Regex("""\s*\d+\s*(?:個|台|枚|本)\s*$"""), "")
             .trim()
             .trimEnd('。', '、', ',', ';')
         if (cleaned.length < 2) return
@@ -132,7 +132,11 @@ object RequestedComponentExtractor {
         Regex("""\b[A-Za-z]+[A-Za-z0-9]*(?:[-_][A-Za-z0-9]+)*\d+[A-Za-z0-9-]*\b""")
             .findAll(goal)
             .map { it.value }
-            .filterNot { normalize(it) in ignoredTokens.map(::normalize) }
+            .filterNot {
+                val normalized = normalize(it)
+                normalized in ignoredTokens.map(::normalize) ||
+                    normalized.startsWith("esp32")
+            }
             .distinctBy(::normalize)
             .toList()
 
