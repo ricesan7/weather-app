@@ -134,6 +134,12 @@ class GatewayComponentResearchClient(
 }
 
 internal object ComponentResearchResponseValidator {
+    private val KNOWN_BUILT_IN_DRIVER_IDS = setOf(
+        "drv_sht31",
+        "drv_gpio_sink",
+        "drv_binary_output",
+    )
+
     fun parse(
         request: ComponentResearchRequest,
         json: JSONObject,
@@ -258,10 +264,27 @@ internal object ComponentResearchResponseValidator {
                 null
             }
     
-        val driverId =
+        val proposedDriverId =
             json.optString("driver_id")
                 .trim()
-                .takeIf { it.isNotBlank() }
+                .takeIf {
+                    it in KNOWN_BUILT_IN_DRIVER_IDS
+                }
+
+        val driverProfile =
+            parseDriverProfile(
+                json = json.optJSONObject("driver_profile"),
+                manufacturer = manufacturer,
+                model = model,
+                kind = kind,
+                primaryInterface = primaryInterface,
+                sources = sources,
+            )
+        val driverId =
+            proposedDriverId
+                ?: driverProfile
+                    ?.takeIf { it.runtimeReady }
+                    ?.driverId
     
         val i2cAddress =
             json.optString("i2c_address")
@@ -300,28 +323,26 @@ internal object ComponentResearchResponseValidator {
             missing += "i2c_address"
         }
     
-        val simpleGpioInput =
-            primaryInterface == ElectricalInterface.GPIO &&
-                kind in setOf(
-                    ComponentKind.SENSOR,
-                    ComponentKind.OTHER,
-                ) &&
-                pins.any {
-                    it.role in setOf(
-                        ComponentPinRole.SIGNAL_OUTPUT,
-                        ComponentPinRole.DATA,
-                    )
-                }
-    
         if (
             kind in setOf(
                 ComponentKind.SENSOR,
                 ComponentKind.DISPLAY,
             ) &&
-            !simpleGpioInput &&
             driverId == null
         ) {
             missing += "runtime_driver"
+        }
+
+        val requestedProfileFamily =
+            json.optJSONObject("driver_profile")
+                ?.optString("family")
+                .orEmpty()
+        if (
+            requestedProfileFamily.isNotBlank() &&
+            requestedProfileFamily != "NONE" &&
+            driverProfile == null
+        ) {
+            missing += "runtime_driver_profile"
         }
     
         val hazardous =
@@ -405,6 +426,7 @@ internal object ComponentResearchResponseValidator {
                             }
                         },
                     driverId = driverId,
+                    runtimeDriverProfile = driverProfile,
                     designReady =
                         status ==
                             ComponentVerificationStatus.DESIGN_READY,
@@ -449,6 +471,12 @@ internal object ComponentResearchResponseValidator {
                             "対応Runtime Driverが未登録です。"
                     )
                 }
+                if ("runtime_driver_profile" in missing) {
+                    add(
+                        "Driver Profile候補は返されましたが、" +
+                            "Runtimeの安全検証条件を満たしていません。"
+                    )
+                }
             }
     
         return ComponentResearchRecord(
@@ -471,6 +499,212 @@ internal object ComponentResearchResponseValidator {
         )
     }
     
+    private fun parseDriverProfile(
+        json: JSONObject?,
+        manufacturer: String,
+        model: String,
+        kind: ComponentKind,
+        primaryInterface: ElectricalInterface?,
+        sources: List<ComponentResearchSource>,
+    ): RuntimeDriverProfile? {
+        if (json == null) return null
+
+        val familyName = json.optString("family").trim()
+        if (familyName.isBlank() || familyName == "NONE") {
+            return null
+        }
+
+        val family =
+            runCatching {
+                RuntimeDriverFamily.valueOf(familyName)
+            }.getOrNull() ?: return null
+
+        val sampleIntervalMs =
+            json.optInt("sample_interval_ms", 0)
+        if (sampleIntervalMs !in 20..60_000) {
+            return null
+        }
+
+        val parameters = linkedMapOf<String, String>()
+        json.optJSONArray("parameters")
+            ?.objects()
+            ?.take(24)
+            ?.forEach { item ->
+                val key =
+                    item.optString("key")
+                        .trim()
+                        .lowercase(Locale.US)
+                val value =
+                    item.optString("value")
+                        .trim()
+                if (
+                    key.matches(
+                        Regex("""[a-z0-9_]{1,48}""")
+                    ) &&
+                    value.length <= 120
+                ) {
+                    parameters[key] = value
+                }
+            }
+
+        val telemetry =
+            json.optJSONArray("telemetry")
+                ?.objects()
+                ?.take(12)
+                ?.mapNotNull { item ->
+                    val id =
+                        item.optString("id").trim()
+                    val source =
+                        item.optString("source").trim()
+                    val unit =
+                        item.optString("unit").trim()
+                    val scale =
+                        item.optDouble("scale", 1.0)
+                    val offset =
+                        item.optDouble("offset", 0.0)
+
+                    if (
+                        !id.matches(
+                            Regex("""[a-z][a-z0-9_]{0,47}""")
+                        ) ||
+                        source.isBlank() ||
+                        !scale.isFinite() ||
+                        !offset.isFinite()
+                    ) {
+                        null
+                    } else {
+                        RuntimeDriverTelemetrySpec(
+                            id = id,
+                            unit = unit.take(24),
+                            source = source,
+                            scale = scale,
+                            offset = offset,
+                        )
+                    }
+                }
+                .orEmpty()
+
+        val runtimeReady =
+            when (family) {
+                RuntimeDriverFamily.DHT_PULSE_SENSOR ->
+                    validateDhtProfile(
+                        kind = kind,
+                        primaryInterface =
+                            primaryInterface,
+                        sampleIntervalMs =
+                            sampleIntervalMs,
+                        parameters = parameters,
+                        telemetry = telemetry,
+                    )
+
+                RuntimeDriverFamily.GPIO_DIGITAL_INPUT ->
+                    primaryInterface ==
+                        ElectricalInterface.GPIO &&
+                        kind in setOf(
+                            ComponentKind.SENSOR,
+                            ComponentKind.OTHER,
+                        ) &&
+                        telemetry.any {
+                            it.source == "DIGITAL_STATE"
+                        }
+
+                RuntimeDriverFamily.GPIO_DIGITAL_OUTPUT ->
+                    primaryInterface ==
+                        ElectricalInterface.GPIO &&
+                        kind in setOf(
+                            ComponentKind.ACTUATOR,
+                            ComponentKind.DRIVER,
+                            ComponentKind.OTHER,
+                        )
+
+                RuntimeDriverFamily.I2C_REGISTER_SENSOR ->
+                    false
+            }
+
+        return RuntimeDriverProfile(
+            driverId =
+                "profile_" +
+                    family.name.lowercase(Locale.US) +
+                    "_" +
+                    slug(
+                        listOf(
+                            manufacturer,
+                            model,
+                        )
+                            .filter { it.isNotBlank() }
+                            .joinToString("_")
+                            .ifBlank { "researched" }
+                    ),
+            family = family,
+            interfaceType =
+                primaryInterface ?: return null,
+            sampleIntervalMs = sampleIntervalMs,
+            parameters = parameters,
+            telemetry = telemetry,
+            sourceIds =
+                sources.map { it.url }.toSet(),
+            status =
+                if (runtimeReady) {
+                    RuntimeDriverProfileStatus.RUNTIME_READY
+                } else {
+                    RuntimeDriverProfileStatus.VALIDATED
+                },
+        )
+    }
+
+    private fun validateDhtProfile(
+        kind: ComponentKind,
+        primaryInterface: ElectricalInterface?,
+        sampleIntervalMs: Int,
+        parameters: Map<String, String>,
+        telemetry: List<RuntimeDriverTelemetrySpec>,
+    ): Boolean {
+        if (
+            kind != ComponentKind.SENSOR ||
+            primaryInterface !=
+                ElectricalInterface.ONE_WIRE ||
+            sampleIntervalMs < 1000
+        ) {
+            return false
+        }
+
+        val variant =
+            parameters["variant"]
+                ?.uppercase(Locale.US)
+        if (variant !in setOf("DHT11", "DHT22")) {
+            return false
+        }
+
+        val startLowUs =
+            parameters["start_low_us"]
+                ?.toIntOrNull()
+                ?: return false
+        val zeroHighMaxUs =
+            parameters["zero_high_max_us"]
+                ?.toIntOrNull()
+                ?: return false
+        val oneHighMinUs =
+            parameters["one_high_min_us"]
+                ?.toIntOrNull()
+                ?: return false
+
+        if (
+            startLowUs !in 800..25_000 ||
+            zeroHighMaxUs !in 20..55 ||
+            oneHighMinUs !in 45..90 ||
+            oneHighMinUs <= zeroHighMaxUs
+        ) {
+            return false
+        }
+
+        val telemetrySources =
+            telemetry.map { it.source }.toSet()
+        return (
+            "DHT_TEMPERATURE" in telemetrySources &&
+                "DHT_HUMIDITY" in telemetrySources
+        )
+    }
+
     private fun signalRequirements(
         primaryInterface: ElectricalInterface?,
         pins: List<ComponentPinSpec>,
