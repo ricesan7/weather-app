@@ -99,6 +99,61 @@ bool nvsWriteString(
     return rc == ESP_OK;
 }
 
+std::optional<std::string> nvsReadBlobString(const std::string& key) {
+    nvs_handle_t handle = 0;
+    if (
+        nvs_open(
+            NVS_NAMESPACE,
+            NVS_READONLY,
+            &handle
+        ) != ESP_OK
+    ) {
+        return std::nullopt;
+    }
+
+    size_t length = 0;
+    esp_err_t rc = nvs_get_blob(handle, key.c_str(), nullptr, &length);
+    if (rc != ESP_OK || length == 0) {
+        nvs_close(handle);
+        return std::nullopt;
+    }
+
+    std::vector<char> buffer(length);
+    rc = nvs_get_blob(handle, key.c_str(), buffer.data(), &length);
+    nvs_close(handle);
+
+    if (rc != ESP_OK) return std::nullopt;
+    return std::string(buffer.data(), length);
+}
+
+bool nvsWriteBlobString(
+    const std::string& key,
+    const std::string& value
+) {
+    nvs_handle_t handle = 0;
+    if (
+        nvs_open(
+            NVS_NAMESPACE,
+            NVS_READWRITE,
+            &handle
+        ) != ESP_OK
+    ) {
+        return false;
+    }
+
+    esp_err_t rc = nvs_set_blob(
+        handle,
+        key.c_str(),
+        value.data(),
+        value.size()
+    );
+    if (rc == ESP_OK) {
+        rc = nvs_commit(handle);
+    }
+    nvs_close(handle);
+    return rc == ESP_OK;
+}
+
 class SmokeHardware final : public aie::RuntimeHardware {
 public:
     bool setOutput(
@@ -131,11 +186,11 @@ public:
     }
 
     std::optional<std::string> loadManifest() override {
-        return nvsReadString("manifest");
+        return nvsReadBlobString("manifest");
     }
 
     bool storeManifest(const std::string& encodedManifest) override {
-        return nvsWriteString("manifest", encodedManifest);
+        return nvsWriteBlobString("manifest", encodedManifest);
     }
 };
 
