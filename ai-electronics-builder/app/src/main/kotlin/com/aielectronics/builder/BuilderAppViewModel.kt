@@ -990,6 +990,34 @@ class BuilderAppViewModel(
     fun deploy() {
         val current = _state.value
         val bundle = current.bundle ?: return
+
+        val runtimePending =
+            bundle.designIr.components.filter {
+                instance ->
+                instance.properties["runtime_required"] ==
+                    "true" &&
+                    instance.properties["runtime_ready"] !=
+                    "true"
+            }
+        if (runtimePending.isNotEmpty()) {
+            _state.update {
+                it.copy(
+                    error =
+                        "設計・配線は確認できますが、" +
+                            "実機設定にはRuntime Driverの完成が必要です: " +
+                            runtimePending.joinToString {
+                                instance ->
+                                instance.properties["display_name"]
+                                    ?: instance.componentId
+                            } +
+                            "。Component Researchで再検証してください。",
+                    deployMessage =
+                        "Runtime Driver検証待ち",
+                )
+            }
+            return
+        }
+
         val connection = current.connection ?: run {
             _state.update { it.copy(error = "先に装置へ接続してください。") }
             return
@@ -1480,11 +1508,31 @@ class BuilderAppViewModel(
                     }
                 }
 
-            val allReady =
+            val allRuntimeReady =
                 records.isNotEmpty() &&
                     records.all {
                         it.status ==
                             ComponentVerificationStatus.DESIGN_READY
+                    }
+
+            val runtimeOnlyMissingFields =
+                setOf(
+                    "runtime_driver",
+                    "runtime_driver_profile",
+                )
+            val allElectricalDesignReady =
+                records.isNotEmpty() &&
+                    records.all { record ->
+                        record.status ==
+                            ComponentVerificationStatus.DESIGN_READY ||
+                            (
+                                record.status ==
+                                    ComponentVerificationStatus.VERIFIED &&
+                                    record.missingFields.isNotEmpty() &&
+                                    record.missingFields.all {
+                                        it in runtimeOnlyMissingFields
+                                    }
+                            )
                     }
 
             _state.update {
@@ -1493,24 +1541,39 @@ class BuilderAppViewModel(
                     componentResearchActive = false,
                     componentResearchRecords = records,
                     pendingComponentResearchRequests =
-                        if (allReady) {
+                        if (allRuntimeReady) {
                             emptyList()
                         } else {
                             requests
                         },
                     componentResearchMessage =
-                        if (allReady) {
-                            "部品調査・検証・Catalog登録が完了しました。" +
-                                "設計を再実行します。"
+                        when {
+                            allRuntimeReady ->
+                                "部品調査・Runtime Driver検証まで完了しました。" +
+                                    "設計を再実行します。"
+
+                            allElectricalDesignReady ->
+                                "電気設計に必要な部品情報は確認できました。" +
+                                    "設計・部品・配線へ進みます。" +
+                                    "Runtime Driver待ちの部品は実機配備前に再検証します。"
+
+                            else ->
+                                "部品調査は完了しましたが、" +
+                                    "電気設計に必要な情報が不足しています。"
+                        },
+                    error =
+                        if (allElectricalDesignReady) {
+                            null
                         } else {
-                            "部品調査は完了しましたが、" +
-                                "安全な自動採用に必要な情報が不足しています。"
+                            it.error
                         },
                 )
             }
 
-            if (allReady) {
-                componentResearchRetryAction = null
+            if (allElectricalDesignReady) {
+                if (allRuntimeReady) {
+                    componentResearchRetryAction = null
+                }
                 retry()
             } else {
                 val details =
