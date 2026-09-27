@@ -317,6 +317,99 @@ class BuilderAppViewModel(
         }
     }
 
+    fun receiveBase44Design(context: Context) {
+        val bridge = base44BridgeClient ?: run {
+            _state.update {
+                it.copy(error = "Base44 Bridge URLが設定されていません。")
+            }
+            return
+        }
+        val code = _state.value.bridgePairingCode.trim()
+        if (code.isBlank()) {
+            _state.update {
+                it.copy(
+                    error =
+                        "Base44で仕様確定時に表示された接続コードを入力してください。"
+                )
+            }
+            return
+        }
+        if (_state.value.busy) return
+
+        val deviceId = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ANDROID_ID,
+        ) ?: UUID.randomUUID().toString()
+
+        _state.update {
+            it.copy(
+                busy = true,
+                error = null,
+                base44BridgeOnline = false,
+                base44BridgeStatus = "Base44から確定仕様を受信しています…",
+                base44HandoffStatus = "receiving",
+                base44HandoffMessage = "",
+            )
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    val credentials = bridge.pair(code, deviceId)
+                    val sync = bridge.sync(
+                        credentials = credentials,
+                        telemetry = emptyMap(),
+                        settings = emptyMap(),
+                        contract = null,
+                        hardwareConnected = false,
+                    )
+                    val handoff = sync.designHandoff
+                        ?: error("Base44に受け取り可能な確定仕様がありません。")
+                    credentials to handoff
+                }
+            }.onSuccess { (credentials, handoff) ->
+                val localProjectId = UUID.randomUUID().toString()
+                val now = System.currentTimeMillis()
+                bridgeCredentialStore?.save(localProjectId, credentials)
+
+                val savedProjects = _state.value.savedProjects
+                _state.value = BuilderAppState(
+                    screen = AppScreen.HOME,
+                    goalText = handoff.goalText,
+                    busy = false,
+                    projectId = localProjectId,
+                    projectTitle = handoff.title,
+                    projectCreatedAtEpochMs = now,
+                    savedProjects = savedProjects,
+                    bridgePairingCode = "",
+                    base44BridgeStatus =
+                        "Base44の確定仕様を受信しました。自動設計を開始します。",
+                    base44BridgeOnline = true,
+                    base44HandoffRevision = handoff.revision,
+                    base44HandoffStatus = "processing",
+                    base44HandoffMessage =
+                        "Project Compilerで回路・部品・配線・Firmwareを再検証しています。",
+                    revisionAssistantLabel =
+                        revisionAssistant.statusLabel,
+                )
+                persistCurrent()
+                startBridgeSync(credentials)
+                resolveAndCompile()
+            }.onFailure { throwable ->
+                _state.update {
+                    it.copy(
+                        busy = false,
+                        base44BridgeOnline = false,
+                        base44HandoffStatus = "failed",
+                        base44BridgeStatus = "Base44仕様の受信に失敗しました。",
+                        error = throwable.message
+                            ?: "Base44から確定仕様を受信できませんでした。",
+                    )
+                }
+            }
+        }
+    }
+
     fun applyAdditionalRequest() {
         val current = _state.value
         val requestText = current.additionalRequestText.trim()
@@ -1306,7 +1399,7 @@ class BuilderAppViewModel(
     private fun persistCurrent() {
         val snapshotState = _state.value
         val projectId = snapshotState.projectId ?: return
-        if (snapshotState.goalText.isBlank() || snapshotState.bundle == null) return
+        if (snapshotState.goalText.isBlank()) return
 
         val now = System.currentTimeMillis()
         val project = SavedProject(
