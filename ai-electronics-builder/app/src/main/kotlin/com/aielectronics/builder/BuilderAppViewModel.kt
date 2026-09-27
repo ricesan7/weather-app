@@ -362,6 +362,7 @@ class BuilderAppViewModel(
                         settings = emptyMap(),
                         contract = null,
                         hardwareConnected = false,
+                        requestDesignRecovery = true,
                     )
                     val handoff = sync.designHandoff
                         ?: error("Base44に受け取り可能な確定仕様がありません。")
