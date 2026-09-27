@@ -75,10 +75,34 @@ class CatalogComponentResolver(
                         .thenBy { it.first.componentId }
                 )
                 .firstOrNull()
-                ?: error(
-                    "No design-ready component covers: " +
-                        uncovered.joinToString { it.value }
+
+            if (candidate == null) {
+                val capability = uncovered.first()
+                throw ComponentResearchRequiredException(
+                    listOf(
+                        ComponentResearchRequest(
+                            requestId =
+                                "research_capability_" +
+                                    capability.value,
+                            requested =
+                                RequestedComponent(
+                                    rawName =
+                                        researchNameFor(
+                                            capability
+                                        ),
+                                    categoryHint =
+                                        researchCategoryFor(
+                                            capability
+                                        ),
+                                ),
+                            requiredCapabilities =
+                                setOf(capability),
+                            projectGoal =
+                                requirements.goal,
+                        )
+                    )
                 )
+            }
 
             if (
                 selectedSpecs.none {
@@ -258,6 +282,30 @@ class CatalogComponentResolver(
                 add(CapabilityId("manage_power_input"))
             }
         }
+    }
+
+    private fun researchNameFor(
+        capability: CapabilityId,
+    ): String = when (capability.value) {
+        "display_visual" -> "ディスプレイモジュール"
+        "sense_button" -> "タクトスイッチ"
+        "manage_power_input" -> "電源切替モジュール"
+        else -> capability.value
+    }
+
+    private fun researchCategoryFor(
+        capability: CapabilityId,
+    ): String? = when {
+        capability.value.startsWith("measure_") ||
+            capability.value.startsWith("sense_") ->
+            "sensor"
+        capability.value.startsWith("display_") ->
+            "display"
+        capability.value.startsWith("actuate_") ->
+            "actuator"
+        capability.value.startsWith("manage_power_") ->
+            "power"
+        else -> null
     }
 
     private fun uniqueInstanceId(
