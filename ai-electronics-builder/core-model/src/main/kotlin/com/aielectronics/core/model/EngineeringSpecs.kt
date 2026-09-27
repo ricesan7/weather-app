@@ -32,6 +32,7 @@ enum class SupplyRole {
 enum class BoardPinCapability {
     DIGITAL_IN,
     DIGITAL_OUT,
+    DIGITAL_IO,
     PWM,
     I2C_SDA,
     I2C_SCL,
