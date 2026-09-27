@@ -205,31 +205,56 @@ class Base44HardwareBridgeClient(
 class Base44BridgeCredentialStore(
     private val preferences: android.content.SharedPreferences,
 ) {
-    fun save(credentials: Base44BridgeCredentials) {
+    fun save(
+        localProjectId: String,
+        credentials: Base44BridgeCredentials,
+    ) {
         preferences.edit()
-            .putString(KEY_PROJECT_ID, credentials.projectId)
-            .putString(KEY_SESSION_ID, credentials.sessionId)
-            .putString(KEY_DEVICE_ID, credentials.deviceId)
-            .putString(KEY_DEVICE_TOKEN, credentials.deviceToken)
+            .putString(key(localProjectId, REMOTE_PROJECT_ID), credentials.projectId)
+            .putString(key(localProjectId, SESSION_ID), credentials.sessionId)
+            .putString(key(localProjectId, DEVICE_ID), credentials.deviceId)
+            .putString(key(localProjectId, DEVICE_TOKEN), credentials.deviceToken)
             .apply()
     }
 
-    fun load(projectId: String): Base44BridgeCredentials? {
-        if (preferences.getString(KEY_PROJECT_ID, null) != projectId) return null
-        val sessionId = preferences.getString(KEY_SESSION_ID, null) ?: return null
-        val deviceId = preferences.getString(KEY_DEVICE_ID, null) ?: return null
-        val deviceToken = preferences.getString(KEY_DEVICE_TOKEN, null) ?: return null
-        return Base44BridgeCredentials(projectId, sessionId, deviceId, deviceToken)
+    fun load(localProjectId: String): Base44BridgeCredentials? {
+        val remoteProjectId =
+            preferences.getString(key(localProjectId, REMOTE_PROJECT_ID), null)
+                ?: return null
+        val sessionId =
+            preferences.getString(key(localProjectId, SESSION_ID), null)
+                ?: return null
+        val deviceId =
+            preferences.getString(key(localProjectId, DEVICE_ID), null)
+                ?: return null
+        val deviceToken =
+            preferences.getString(key(localProjectId, DEVICE_TOKEN), null)
+                ?: return null
+
+        return Base44BridgeCredentials(
+            projectId = remoteProjectId,
+            sessionId = sessionId,
+            deviceId = deviceId,
+            deviceToken = deviceToken,
+        )
     }
 
-    fun clear() {
-        preferences.edit().clear().apply()
+    fun clear(localProjectId: String) {
+        preferences.edit()
+            .remove(key(localProjectId, REMOTE_PROJECT_ID))
+            .remove(key(localProjectId, SESSION_ID))
+            .remove(key(localProjectId, DEVICE_ID))
+            .remove(key(localProjectId, DEVICE_TOKEN))
+            .apply()
     }
+
+    private fun key(localProjectId: String, field: String): String =
+        "project." + localProjectId + "." + field
 
     companion object {
-        private const val KEY_PROJECT_ID = "project_id"
-        private const val KEY_SESSION_ID = "session_id"
-        private const val KEY_DEVICE_ID = "device_id"
-        private const val KEY_DEVICE_TOKEN = "device_token"
+        private const val REMOTE_PROJECT_ID = "remote_project_id"
+        private const val SESSION_ID = "session_id"
+        private const val DEVICE_ID = "device_id"
+        private const val DEVICE_TOKEN = "device_token"
     }
 }
