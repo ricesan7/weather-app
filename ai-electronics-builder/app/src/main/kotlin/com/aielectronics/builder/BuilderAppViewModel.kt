@@ -1,6 +1,7 @@
 package com.aielectronics.builder
 
 import android.content.Context
+import android.provider.Settings
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -18,9 +19,13 @@ import com.aielectronics.compiler.CompileResult
 import com.aielectronics.compiler.RequirementResolution
 import com.aielectronics.core.model.ReleaseBundle
 import com.aielectronics.core.model.ResolvedRequirements
+import com.aielectronics.control.RuntimeControlClient
 import com.aielectronics.runtime.CanonicalManifestEncoder
 import com.aielectronics.runtime.RuntimeClient
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,9 +40,15 @@ class BuilderAppViewModel(
     private val frictionTelemetry: FrictionTelemetryRecorder = FrictionTelemetryRecorder(),
     private val projectRepository: ProjectRepository = InMemoryProjectRepository(),
     private val revisionAssistant: RevisionLanguageAssistant = LocalRevisionLanguageAssistant(),
+    private val base44BridgeClient: Base44HardwareBridgeClient? =
+        BuildConfig.BASE44_BRIDGE_URL
+            .takeIf { it.isNotBlank() }
+            ?.let(::Base44HardwareBridgeClient),
+    private val bridgeCredentialStore: Base44BridgeCredentialStore? = null,
 ) : ViewModel() {
 
     private val localRevisionAssistant = LocalRevisionLanguageAssistant()
+    private var bridgeJob: Job? = null
 
     private val _state = MutableStateFlow(BuilderAppState())
     val state: StateFlow<BuilderAppState> = _state.asStateFlow()
@@ -64,6 +75,66 @@ class BuilderAppViewModel(
 
     fun setAdditionalRequest(text: String) {
         _state.update { it.copy(additionalRequestText = text) }
+    }
+
+    fun setBridgePairingCode(text: String) {
+        _state.update {
+            it.copy(
+                bridgePairingCode = text.uppercase().replace(" ", ""),
+                error = null,
+            )
+        }
+    }
+
+    fun pairBase44(context: Context) {
+        val bridge = base44BridgeClient ?: run {
+            _state.update { it.copy(error = "Base44 Bridge URLが設定されていません。") }
+            return
+        }
+        val code = _state.value.bridgePairingCode.trim()
+        if (code.isBlank()) {
+            _state.update { it.copy(error = "CircuitFlowで発行した接続コードを入力してください。") }
+            return
+        }
+
+        val deviceId = Settings.Secure.getString(
+            context.contentResolver,
+            Settings.Secure.ANDROID_ID,
+        ) ?: UUID.randomUUID().toString()
+
+        _state.update {
+            it.copy(
+                base44BridgeStatus = "CircuitFlowへ接続しています…",
+                base44BridgeOnline = false,
+                error = null,
+            )
+        }
+
+        viewModelScope.launch {
+            runCatching {
+                withContext(Dispatchers.IO) {
+                    bridge.pair(code, deviceId)
+                }
+            }.onSuccess { credentials ->
+                bridgeCredentialStore?.save(credentials)
+                _state.update {
+                    it.copy(
+                        bridgePairingCode = "",
+                        base44BridgeStatus = "CircuitFlowとペアリングしました。",
+                        base44BridgeOnline = true,
+                    )
+                }
+                startBridgeSync(credentials)
+            }.onFailure { throwable ->
+                _state.update {
+                    it.copy(
+                        base44BridgeStatus = "CircuitFlowとのペアリングに失敗しました。",
+                        base44BridgeOnline = false,
+                        error = throwable.message ?: "Base44 Bridgeへの接続に失敗しました。",
+                    )
+                }
+            }
+        }
     }
 
     fun applyAdditionalRequest() {
@@ -236,6 +307,8 @@ class BuilderAppViewModel(
     }
 
     fun newProject() {
+        bridgeJob?.cancel()
+        bridgeJob = null
         val saved = _state.value.savedProjects
         _state.value = BuilderAppState(savedProjects = saved)
     }
@@ -460,6 +533,8 @@ class BuilderAppViewModel(
             }
 
             if (_state.value.projectId == projectId) {
+                bridgeJob?.cancel()
+                bridgeJob = null
                 _state.value = BuilderAppState(savedProjects = savedProjects)
             } else {
                 _state.update { it.copy(savedProjects = savedProjects) }
@@ -495,6 +570,7 @@ class BuilderAppViewModel(
                         deployMessage = "装置に接続しました。",
                     )
                 }
+                maybeStartBridgeSync()
             }.onFailure {
                 _state.update {
                     it.copy(
@@ -597,6 +673,107 @@ class BuilderAppViewModel(
     fun clearError() {
         _state.update { it.copy(error = null) }
     }
+
+    private fun maybeStartBridgeSync() {
+        val projectId = _state.value.projectId ?: return
+        val credentials = bridgeCredentialStore?.load(projectId) ?: return
+        startBridgeSync(credentials)
+    }
+
+    private fun startBridgeSync(credentials: Base44BridgeCredentials) {
+        val bridge = base44BridgeClient ?: return
+        bridgeJob?.cancel()
+
+        bridgeJob = viewModelScope.launch(Dispatchers.IO) {
+            var acknowledgements = emptyList<Base44BridgeAck>()
+
+            while (isActive) {
+                val snapshot = _state.value
+                val connection = snapshot.connection
+                val bundle = snapshot.bundle
+
+                if (connection == null || bundle == null) {
+                    _state.update {
+                        it.copy(
+                            base44BridgeOnline = false,
+                            base44BridgeStatus =
+                                "CircuitFlow連携済み。実機接続後に同期を開始します。",
+                        )
+                    }
+                    delay(BRIDGE_SYNC_INTERVAL_MS)
+                    continue
+                }
+
+                runCatching {
+                    val runtime = RuntimeControlClient(connection.transport)
+                    val telemetry = runtime.telemetry()
+                    val contract = bundle.softwarePlan.base44Handoff?.integration
+                    bridge.sync(
+                        credentials = credentials,
+                        telemetry = telemetry,
+                        contract = contract,
+                        acknowledgements = acknowledgements,
+                    )
+                }.onSuccess { sync ->
+                    val runtime = RuntimeControlClient(connection.transport)
+                    val nextAcks = sync.commands.map { command ->
+                        executeBridgeCommand(runtime, command)
+                    }
+                    acknowledgements = nextAcks
+                    _state.update {
+                        it.copy(
+                            base44BridgeOnline = true,
+                            base44BridgeStatus = "CircuitFlowと実機データを同期中",
+                            bridgeLastSyncAtEpochMs = System.currentTimeMillis(),
+                        )
+                    }
+                }.onFailure { throwable ->
+                    acknowledgements = emptyList()
+                    _state.update {
+                        it.copy(
+                            base44BridgeOnline = false,
+                            base44BridgeStatus =
+                                "CircuitFlow同期エラー: " +
+                                    (throwable.message ?: "通信失敗"),
+                        )
+                    }
+                }
+
+                delay(BRIDGE_SYNC_INTERVAL_MS)
+            }
+        }
+    }
+
+    private fun executeBridgeCommand(
+        runtime: RuntimeControlClient,
+        command: Base44BridgeCommand,
+    ): Base44BridgeAck =
+        runCatching {
+            when {
+                command.binding.startsWith("settings.") -> {
+                    val settingId = command.binding.removePrefix("settings.")
+                    runtime.setSetting(settingId, command.value)
+                }
+
+                else -> error(
+                    "未対応のBridge bindingです: " + command.binding
+                )
+            }
+        }.fold(
+            onSuccess = {
+                Base44BridgeAck(
+                    commandId = command.commandId,
+                    ok = true,
+                )
+            },
+            onFailure = { throwable ->
+                Base44BridgeAck(
+                    commandId = command.commandId,
+                    ok = false,
+                    error = throwable.message ?: "runtime_command_failed",
+                )
+            },
+        )
 
     private fun resolveAndCompile() {
         val current = _state.value
@@ -809,6 +986,8 @@ class BuilderAppViewModel(
         requirements: ResolvedRequirements,
         bundle: ReleaseBundle,
     ) {
+        bridgeJob?.cancel()
+        bridgeJob = null
         val previous = _state.value
         val currentConnectionIds =
             bundle.circuitGraph.connections.map { it.id }.toSet()
@@ -926,6 +1105,7 @@ class BuilderAppViewModel(
         private val projectRepository: ProjectRepository,
         private val revisionAssistant: RevisionLanguageAssistant =
             LocalRevisionLanguageAssistant(),
+        private val bridgeCredentialStore: Base44BridgeCredentialStore? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -933,8 +1113,13 @@ class BuilderAppViewModel(
             return BuilderAppViewModel(
                 projectRepository = projectRepository,
                 revisionAssistant = revisionAssistant,
+                bridgeCredentialStore = bridgeCredentialStore,
             ) as T
         }
+    }
+
+    private companion object {
+        const val BRIDGE_SYNC_INTERVAL_MS = 3_000L
     }
 
     private sealed interface ResolutionResult {
