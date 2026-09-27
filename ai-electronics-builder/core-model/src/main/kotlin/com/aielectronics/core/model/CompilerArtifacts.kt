@@ -110,6 +110,7 @@ data class ProjectManifest(
     val tests: List<TestSpec>,
     val minimumRuntimeVersion: String,
     val autonomy: OfflineAutonomySpec = OfflineAutonomySpec(),
+    val driverProfiles: List<RuntimeDriverProfile> = emptyList(),
 )
 
 data class ManifestBus(val id: String, val kind: String, val pins: Map<String, String>)
