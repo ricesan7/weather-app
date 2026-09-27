@@ -670,17 +670,138 @@ class BuilderAppViewModel(
 
         _state.update {
             it.copy(
-                screen = AppScreen.REVISION,
-                revisionReturnScreen = AppScreen.HOME,
-                additionalRequestText =
-                    clean +
-                        " は現在検証待ちです。" +
-                        "同じ目的を満たし、" +
-                        "検証済みCatalogまたは" +
-                        "Runtime対応可能な別部品へ変更したいです。",
+                screen = AppScreen.HOME,
+                componentReplacementTarget = clean,
+                componentReplacementText = "",
                 error = null,
             )
         }
+    }
+
+    fun setResearchComponentReplacement(
+        value: String,
+    ) {
+        _state.update {
+            it.copy(
+                componentReplacementText = value,
+                error = null,
+            )
+        }
+    }
+
+    fun cancelResearchComponentChange() {
+        _state.update {
+            it.copy(
+                componentReplacementTarget = null,
+                componentReplacementText = "",
+                error = null,
+            )
+        }
+    }
+
+    fun confirmResearchComponentChange() {
+        val current = _state.value
+        if (current.busy) return
+
+        val target =
+            current.componentReplacementTarget
+                ?.trim()
+                .orEmpty()
+        val replacementName =
+            current.componentReplacementText.trim()
+
+        if (target.isBlank()) {
+            _state.update {
+                it.copy(
+                    componentReplacementTarget = null,
+                    componentReplacementText = "",
+                    error =
+                        "変更対象の部品が見つかりません。" +
+                            "検証待ち一覧からもう一度選択してください。",
+                )
+            }
+            return
+        }
+
+        if (replacementName.isBlank()) {
+            _state.update {
+                it.copy(
+                    error = "変更後の部品名を入力してください。",
+                )
+            }
+            return
+        }
+
+        if (
+            replacementName.equals(
+                target,
+                ignoreCase = true,
+            )
+        ) {
+            _state.update {
+                it.copy(
+                    error =
+                        "現在と同じ部品名です。" +
+                            "別の型番・部品名を入力してください。",
+                )
+            }
+            return
+        }
+
+        val matcher =
+            Regex(
+                Regex.escape(target),
+                RegexOption.IGNORE_CASE,
+            )
+        val updatedGoal =
+            if (matcher.containsMatchIn(current.goalText)) {
+                matcher.replace(
+                    current.goalText,
+                    replacementName,
+                )
+            } else {
+                current.goalText.trimEnd() +
+                    "\n\n## 部品変更\n- " +
+                    target +
+                    " → " +
+                    replacementName
+            }
+
+        _state.update {
+            it.copy(
+                goalText = updatedGoal,
+                componentReplacementTarget = null,
+                componentReplacementText = "",
+                componentResearchRecords = emptyList(),
+                pendingComponentResearchRequests = emptyList(),
+                componentResearchMessage =
+                    target +
+                        " を " +
+                        replacementName +
+                        " に変更しました。再設計します。",
+                error = null,
+                base44HandoffStatus =
+                    if (
+                        it.base44HandoffRevision != null
+                    ) {
+                        "processing"
+                    } else {
+                        it.base44HandoffStatus
+                    },
+                base44HandoffMessage =
+                    if (
+                        it.base44HandoffRevision != null
+                    ) {
+                        "代替部品を反映してProject Compilerを再実行しています。"
+                    } else {
+                        it.base44HandoffMessage
+                    },
+            )
+        }
+
+        componentResearchRetryAction = null
+        persistCurrent()
+        resolveAndCompile()
     }
 
     fun startDesign() {
