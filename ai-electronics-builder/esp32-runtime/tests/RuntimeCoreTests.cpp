@@ -45,8 +45,18 @@ public:
         return true;
     }
 
+    std::optional<std::string> loadManifest() override {
+        return persistedManifest;
+    }
+
+    bool storeManifest(const std::string& encodedManifest) override {
+        persistedManifest = encodedManifest;
+        return true;
+    }
+
     std::unordered_map<std::string, std::string> outputs;
     std::unordered_map<std::string, std::string> persistedSettings;
+    std::optional<std::string> persistedManifest;
     std::vector<std::string> tests;
 };
 
@@ -188,6 +198,41 @@ void testRuntimeSettingsSurviveRuntimeRecreation() {
         );
         assert(rebooted.deploy(manifest, error));
         assert(rebooted.getSetting("temp_on").value() == "32.0");
+    }
+}
+
+void testPersistedManifestRestoresWithoutPhone() {
+    FakeHardware hardware;
+    std::string error;
+
+    {
+        aie::RuntimeCore runtime(
+            hardware,
+            std::set<std::string>{"drv_sht31", "drv_gpio_sink"}
+        );
+        const auto manifest = aie::ManifestParser().parse(goldenManifest());
+        assert(runtime.deploy(manifest, error));
+        assert(runtime.persistManifest(goldenManifest(), error));
+        assert(runtime.setSetting("temp_on", "32.0", error));
+    }
+
+    {
+        aie::RuntimeCore rebooted(
+            hardware,
+            std::set<std::string>{"drv_sht31", "drv_gpio_sink"}
+        );
+        assert(rebooted.restorePersistedManifest(error));
+        assert(rebooted.verifyProject("golden"));
+        assert(rebooted.getSetting("temp_on").value() == "32.0");
+
+        rebooted.updateInput("temperature", aie::Value(33.0));
+        rebooted.updateInput(
+            "required_sensor_invalid_for",
+            aie::Value(0.0)
+        );
+        rebooted.tick();
+
+        assert(hardware.outputs["fan"] == "ON");
     }
 }
 
@@ -344,6 +389,7 @@ int main() {
     testManifestAndRuntime();
     testAutonomousControlWithoutPhoneBridge();
     testRuntimeSettingsSurviveRuntimeRecreation();
+    testPersistedManifestRestoresWithoutPhone();
     testUnsupportedDriverBlocked();
     testProtocol();
     testBlePacketContract();
