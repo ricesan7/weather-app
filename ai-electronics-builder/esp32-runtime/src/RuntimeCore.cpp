@@ -64,7 +64,26 @@ bool RuntimeCore::deploy(const Manifest& manifest, std::string& error) {
     events_.clear();
 
     for (const auto& setting : manifest.settings) {
-        settings_[setting.id] = setting.defaultValue;
+        std::string value = setting.defaultValue;
+
+        if (manifest.autonomy.persistRuntimeSettings) {
+            const auto persisted = hardware_.loadSetting(
+                manifest.projectId,
+                setting.id
+            );
+            if (persisted) {
+                std::string validationError;
+                if (validateSetting(setting, *persisted, validationError)) {
+                    value = *persisted;
+                } else {
+                    events_.push_back({
+                        "persisted_setting_invalid:" + setting.id
+                    });
+                }
+            }
+        }
+
+        settings_[setting.id] = value;
     }
 
     return true;
@@ -114,6 +133,18 @@ bool RuntimeCore::setSetting(
             error = "Relational constraint invalid";
             return false;
         }
+    }
+
+    if (
+        manifest_->autonomy.persistRuntimeSettings &&
+        !hardware_.storeSetting(
+            manifest_->projectId,
+            settingId,
+            value
+        )
+    ) {
+        error = "Failed to persist setting";
+        return false;
     }
 
     settings_[settingId] = value;
