@@ -19,8 +19,14 @@ class ManifestEncodingTest {
             rules = listOf(
                 BehaviorRule(
                     id = "auto_on",
-                    condition = Expression.Raw("mode == AUTO && temperature >= temp_on"),
-                    actions = listOf(Action.SetOutput("fan", "ON")),
+                    condition =
+                        Expression.Raw(
+                            "mode == AUTO && temperature >= temp_on"
+                        ),
+                    actions =
+                        listOf(
+                            Action.SetOutput("fan", "ON")
+                        ),
                     priority = 50,
                 )
             ),
@@ -30,15 +36,26 @@ class ManifestEncodingTest {
                     type = SettingType.NUMBER,
                     defaultValue = "30.0",
                     mutableAtRuntime = true,
-                    constraints = SettingConstraints(min = 10.0, max = 50.0, step = 0.5),
+                    constraints =
+                        SettingConstraints(
+                            min = 10.0,
+                            max = 50.0,
+                            step = 0.5,
+                        ),
                 )
             ),
             interlocks = emptyList(),
             failsafe = listOf(
                 FailsafeSpec(
                     id = "sensor_timeout",
-                    condition = Expression.Raw("required_sensor_invalid_for >= 5s"),
-                    actions = listOf(Action.SetOutput("fan", "OFF")),
+                    condition =
+                        Expression.Raw(
+                            "required_sensor_invalid_for >= 5s"
+                        ),
+                    actions =
+                        listOf(
+                            Action.SetOutput("fan", "OFF")
+                        ),
                 )
             ),
             telemetryIds = listOf("temperature"),
@@ -46,7 +63,8 @@ class ManifestEncodingTest {
             minimumRuntimeVersion = "0.1.0",
         )
 
-        val text = CanonicalManifestEncoder().encode(manifest)
+        val text =
+            CanonicalManifestEncoder().encode(manifest)
 
         assertTrue(
             text.contains(
@@ -54,10 +72,18 @@ class ManifestEncodingTest {
             )
         )
         assertTrue(text.contains("rule\tauto_on\t50"))
-        assertTrue(text.contains("setting\ttemp_on\tNUMBER\t30.0\ttrue"))
-        assertTrue(text.contains("failsafe\tsensor_timeout"))
+        assertTrue(
+            text.contains(
+                "setting\ttemp_on\tNUMBER\t30.0\ttrue"
+            )
+        )
+        assertTrue(
+            text.contains("failsafe\tsensor_timeout")
+        )
         assertTrue(text.contains("set:fan:OFF"))
-        @Test
+    }
+
+    @Test
     fun `canonical manifest includes verified driver profiles`() {
         val profile =
             RuntimeDriverProfile(
@@ -139,11 +165,7 @@ class ManifestEncodingTest {
                     "\tDHT_PULSE_SENSOR\tONE_WIRE\t2000"
             )
         )
-        assertTrue(
-            text.contains(
-                "variant:DHT11"
-            )
-        )
+        assertTrue(text.contains("variant:DHT11"))
         assertTrue(
             text.contains(
                 "temperature,C,DHT_TEMPERATURE,1.0,0.0"
@@ -157,5 +179,4 @@ class ManifestEncodingTest {
             )
         )
     }
-}
 }
