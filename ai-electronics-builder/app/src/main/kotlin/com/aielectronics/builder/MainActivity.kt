@@ -166,6 +166,12 @@ private fun BuilderAppHost() {
             viewModel::retryPendingComponentResearch,
         onChangeResearchComponent =
             viewModel::prepareResearchComponentChange,
+        onResearchComponentReplacementChange =
+            viewModel::setResearchComponentReplacement,
+        onConfirmResearchComponentChange =
+            viewModel::confirmResearchComponentChange,
+        onCancelResearchComponentChange =
+            viewModel::cancelResearchComponentChange,
         onBuildProgress = viewModel::updateBuildProgress,
         onResumeProject = viewModel::resumeProject,
         onDeleteProject = viewModel::deleteProject,
