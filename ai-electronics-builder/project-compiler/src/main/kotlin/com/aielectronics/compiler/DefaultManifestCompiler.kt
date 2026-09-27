@@ -72,6 +72,7 @@ class DefaultManifestCompiler(
             telemetryIds = telemetry,
             tests = tests,
             minimumRuntimeVersion = minimumRuntimeVersion,
+            autonomy = core.autonomy,
         )
     }
 
