@@ -89,6 +89,18 @@ class DefaultSoftwareArchitectureCompilerTest {
         assertTrue(
             Base44ApplicationCapability.DEVICE_SETTINGS in handoff.requestedCapabilities
         )
+        val dashboard = handoff.integration.pages.first {
+            it.id == "dashboard"
+        }
+        assertEquals("状態", dashboard.title)
+        assertEquals(
+            listOf("telemetry.sensor_value", "settings.target_value"),
+            dashboard.widgets.sortedBy { it.order }.map { it.binding },
+        )
+        assertEquals(
+            AppBridgeWidgetSpan.THIRD,
+            dashboard.widgets.first { it.binding == "telemetry.sensor_value" }.span,
+        )
     }
 
     @Test
