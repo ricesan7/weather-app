@@ -146,6 +146,9 @@ RuntimeFrame ProtocolDispatcher::handle(const RuntimeFrame& request) {
                     {"settings", "true"},
                     {"self_test", "true"},
                     {"telemetry", "true"},
+                    {"offline_autonomy", "true"},
+                    {"persistent_manifest", "true"},
+                    {"persistent_settings", "true"},
                 }
             );
         }
