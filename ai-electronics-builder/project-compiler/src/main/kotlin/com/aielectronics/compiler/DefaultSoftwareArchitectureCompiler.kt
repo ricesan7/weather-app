@@ -216,6 +216,8 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
                         fallback = AppBridgePresentation.VALUE,
                     ),
                     unit = telemetry.unit,
+                    min = (widget as? UiWidget.Gauge)?.min,
+                    max = (widget as? UiWidget.Gauge)?.max,
                 )
             )
         }
