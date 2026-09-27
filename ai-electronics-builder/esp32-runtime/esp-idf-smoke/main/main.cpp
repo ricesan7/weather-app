@@ -174,13 +174,29 @@ public:
     bool supportsDriverProfile(
         const aie::DriverProfileSpec& profile
     ) const override {
-        return (
+        if (
             profile.family == "DHT_PULSE_SENSOR" &&
             profile.interfaceType == "ONE_WIRE"
-        ) || (
+        ) {
+            return validDhtProfile(profile);
+        }
+
+        if (
             profile.family == "GPIO_DIGITAL_INPUT" &&
-            profile.interfaceType == "GPIO"
-        );
+            profile.interfaceType == "GPIO" &&
+            profile.sampleIntervalMs >= 20
+        ) {
+            for (const auto& telemetry : profile.telemetry) {
+                if (
+                    telemetry.source ==
+                    "DIGITAL_STATE"
+                ) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     std::uint64_t monotonicMillis() const override {
@@ -269,6 +285,73 @@ private:
         }
         return static_cast<std::uint32_t>(
             esp_timer_get_time() - start
+        );
+    }
+
+    static bool validDhtProfile(
+        const aie::DriverProfileSpec& profile
+    ) {
+        const auto variant =
+            profile.parameters.find("variant");
+        const auto start =
+            profile.parameters.find("start_low_us");
+        const auto zero =
+            profile.parameters.find(
+                "zero_high_max_us"
+            );
+        const auto one =
+            profile.parameters.find(
+                "one_high_min_us"
+            );
+
+        if (
+            variant == profile.parameters.end() ||
+            start == profile.parameters.end() ||
+            zero == profile.parameters.end() ||
+            one == profile.parameters.end() ||
+            (
+                variant->second != "DHT11" &&
+                variant->second != "DHT22"
+            ) ||
+            profile.sampleIntervalMs < 1000
+        ) {
+            return false;
+        }
+
+        int startLowUs = 0;
+        int zeroHighMaxUs = 0;
+        int oneHighMinUs = 0;
+        try {
+            startLowUs = std::stoi(start->second);
+            zeroHighMaxUs = std::stoi(zero->second);
+            oneHighMinUs = std::stoi(one->second);
+        } catch (...) {
+            return false;
+        }
+
+        bool temperature = false;
+        bool humidity = false;
+        for (const auto& telemetry : profile.telemetry) {
+            temperature =
+                temperature ||
+                telemetry.source ==
+                    "DHT_TEMPERATURE";
+            humidity =
+                humidity ||
+                telemetry.source ==
+                    "DHT_HUMIDITY";
+        }
+
+        return (
+            startLowUs >= 800 &&
+            startLowUs <= 25000 &&
+            zeroHighMaxUs >= 20 &&
+            zeroHighMaxUs <= 55 &&
+            oneHighMinUs >= 45 &&
+            oneHighMinUs <= 90 &&
+            oneHighMinUs > zeroHighMaxUs &&
+            temperature &&
+            humidity
         );
     }
 
