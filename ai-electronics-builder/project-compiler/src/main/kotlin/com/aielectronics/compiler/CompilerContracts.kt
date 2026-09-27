@@ -107,3 +107,12 @@ interface SoftwareArchitectureCompiler {
         ui: UiSpec,
     ): Result<SoftwarePlan>
 }
+
+
+interface ProjectGraphCompiler {
+    fun compile(
+        core: DesignCore,
+        ui: UiSpec,
+        softwarePlan: SoftwarePlan,
+    ): Result<ProjectGraph>
+}
