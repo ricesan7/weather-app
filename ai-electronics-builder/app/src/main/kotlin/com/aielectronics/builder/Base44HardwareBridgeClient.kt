@@ -31,6 +31,7 @@ data class Base44BridgeAck(
 
 data class Base44DesignHandoff(
     val revision: Int,
+    val status: String,
     val title: String,
     val goalText: String,
     val specMarkdown: String,
@@ -157,6 +158,7 @@ class Base44HardwareBridgeClient(
         val handoff = json.optJSONObject("design_handoff")?.let { item ->
             Base44DesignHandoff(
                 revision = item.getInt("revision"),
+                status = item.optString("status", "delivered"),
                 title = item.optString("title", "Base44プロジェクト"),
                 goalText = item.getString("goal_text"),
                 specMarkdown = item.getString("spec_markdown"),
