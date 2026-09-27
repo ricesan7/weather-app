@@ -2,6 +2,7 @@ package com.aielectronics.builder
 
 import com.aielectronics.application.SavedProjectSummary
 import com.aielectronics.ble.android.AndroidBleRuntimeConnection
+import com.aielectronics.core.model.ComponentResearchRecord
 import com.aielectronics.core.model.MissingRequirement
 import com.aielectronics.application.SavedGraphNodePosition
 import com.aielectronics.core.model.ReleaseBundle
@@ -56,6 +57,9 @@ data class BuilderAppState(
     val base44HandoffRevision: Int? = null,
     val base44HandoffStatus: String = "",
     val base44HandoffMessage: String = "",
+    val componentResearchActive: Boolean = false,
+    val componentResearchMessage: String = "",
+    val componentResearchRecords: List<ComponentResearchRecord> = emptyList(),
     val selectedGraphNodeId: String? = null,
     val graphNodePositions: Map<String, SavedGraphNodePosition> = emptyMap(),
     val graphLayoutUndoStack:
