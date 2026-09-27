@@ -71,6 +71,30 @@ std::unordered_map<std::string, std::string> keyValues(const std::string& value)
     return result;
 }
 
+std::vector<DriverTelemetrySpec> driverTelemetry(
+    const std::string& value
+) {
+    std::vector<DriverTelemetrySpec> result;
+    if (value.empty()) return result;
+
+    for (const auto& token : split(value, ';')) {
+        const auto fields = split(token, ',');
+        if (fields.size() != 5) {
+            throw std::runtime_error(
+                "Invalid driver telemetry"
+            );
+        }
+        result.push_back(DriverTelemetrySpec{
+            fields[0],
+            fields[1],
+            fields[2],
+            std::stod(fields[3]),
+            std::stod(fields[4]),
+        });
+    }
+    return result;
+}
+
 } // namespace
 
 Manifest ManifestParser::parse(const std::string& text) const {
@@ -106,6 +130,29 @@ Manifest ManifestParser::parse(const std::string& text) const {
         } else if (kind == "driver") {
             if (fields.size() < 2) throw std::runtime_error("Invalid driver line");
             manifest.drivers.push_back(fields[1]);
+        } else if (kind == "driver_profile") {
+            if (fields.size() < 7) {
+                throw std::runtime_error(
+                    "Invalid driver profile line"
+                );
+            }
+            const int sampleIntervalMs =
+                std::stoi(fields[4]);
+            if (sampleIntervalMs <= 0) {
+                throw std::runtime_error(
+                    "Invalid driver sample interval"
+                );
+            }
+            manifest.driverProfiles.push_back(
+                DriverProfileSpec{
+                    fields[1],
+                    fields[2],
+                    fields[3],
+                    sampleIntervalMs,
+                    keyValues(fields[5]),
+                    driverTelemetry(fields[6]),
+                }
+            );
         } else if (kind == "device") {
             if (fields.size() < 4) throw std::runtime_error("Invalid device line");
             manifest.devices.push_back(DeviceSpec{
