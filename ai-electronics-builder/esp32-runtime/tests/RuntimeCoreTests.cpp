@@ -50,6 +50,7 @@ public:
     }
 
     bool storeManifest(const std::string& encodedManifest) override {
+        if (failManifestStore) return false;
         persistedManifest = encodedManifest;
         return true;
     }
@@ -57,6 +58,7 @@ public:
     std::unordered_map<std::string, std::string> outputs;
     std::unordered_map<std::string, std::string> persistedSettings;
     std::optional<std::string> persistedManifest;
+    bool failManifestStore = false;
     std::vector<std::string> tests;
 };
 
@@ -236,6 +238,28 @@ void testPersistedManifestRestoresWithoutPhone() {
     }
 }
 
+void testDeploymentFailsClosedWhenManifestCannotPersist() {
+    FakeHardware hardware;
+    hardware.failManifestStore = true;
+
+    aie::RuntimeCore runtime(
+        hardware,
+        std::set<std::string>{"drv_sht31", "drv_gpio_sink"}
+    );
+    aie::ProtocolDispatcher dispatcher(runtime);
+
+    aie::RuntimeFrame deploy;
+    deploy.type = aie::MessageType::DEPLOY_MANIFEST;
+    deploy.requestId = "persist-fail";
+    deploy.fields["payload"] = goldenManifest();
+
+    const auto response = dispatcher.handle(deploy);
+
+    assert(response.type == aie::MessageType::DEPLOY_RESULT);
+    assert(response.fields.at("ok") == "false");
+    assert(!runtime.verifyProject("golden"));
+}
+
 void testUnsupportedDriverBlocked() {
     auto manifest = aie::ManifestParser().parse(goldenManifest());
     manifest.drivers.push_back("drv_missing");
@@ -390,6 +414,7 @@ int main() {
     testAutonomousControlWithoutPhoneBridge();
     testRuntimeSettingsSurviveRuntimeRecreation();
     testPersistedManifestRestoresWithoutPhone();
+    testDeploymentFailsClosedWhenManifestCannotPersist();
     testUnsupportedDriverBlocked();
     testProtocol();
     testBlePacketContract();
