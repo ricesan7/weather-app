@@ -19,7 +19,7 @@ object GoldenEngineeringCatalog : EngineeringCatalog {
             preferredSupplyVoltageV = 3.3,
             supplyRole = SupplyRole.LOGIC,
             currentMaxMa = null,
-            driverId = "drv_sensirion_i2c_sht3x_arduino",
+            driverId = "drv_sht31",
             designReady = true,
             engineeringPriority = 100,
             pins = listOf(
