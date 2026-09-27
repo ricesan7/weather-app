@@ -67,7 +67,15 @@ enum class AppBridgePresentation {
     SLIDER,
     SELECT,
     BUTTON,
+    LINE_CHART,
+    ALARM,
     EVENT,
+}
+
+enum class AppBridgeWidgetSpan {
+    THIRD,
+    HALF,
+    FULL,
 }
 
 data class AppBridgeChannel(
@@ -84,9 +92,26 @@ data class AppBridgeChannel(
     val allowedValues: List<String> = emptyList(),
 )
 
+data class AppBridgeWidget(
+    val id: String,
+    val binding: String,
+    val displayName: String,
+    val presentation: AppBridgePresentation,
+    val span: AppBridgeWidgetSpan = AppBridgeWidgetSpan.HALF,
+    val order: Int = 0,
+)
+
+data class AppBridgePage(
+    val id: String,
+    val title: String,
+    val order: Int,
+    val widgets: List<AppBridgeWidget> = emptyList(),
+)
+
 data class AppHardwareIntegrationContract(
-    val schemaVersion: String = "1.0",
+    val schemaVersion: String = "1.1",
     val channels: List<AppBridgeChannel> = emptyList(),
+    val pages: List<AppBridgePage> = emptyList(),
 )
 
 enum class Base44ApplicationCapability {
