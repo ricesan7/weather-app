@@ -28,6 +28,39 @@ class CanonicalManifestEncoder : ProjectManifestEncoder {
             lines += line("driver", driver)
         }
 
+        manifest.driverProfiles
+            .sortedBy { it.driverId }
+            .forEach { profile ->
+                val parameters =
+                    profile.parameters.toSortedMap()
+                        .entries
+                        .joinToString(",") {
+                            entry ->
+                            entry.key + ":" + entry.value
+                        }
+                val telemetry =
+                    profile.telemetry
+                        .sortedBy { it.id }
+                        .joinToString(";") { item ->
+                            listOf(
+                                item.id,
+                                item.unit,
+                                item.source,
+                                item.scale.toString(),
+                                item.offset.toString(),
+                            ).joinToString(",")
+                        }
+                lines += line(
+                    "driver_profile",
+                    profile.driverId,
+                    profile.family.name,
+                    profile.interfaceType.name,
+                    profile.sampleIntervalMs.toString(),
+                    parameters,
+                    telemetry,
+                )
+            }
+
         manifest.buses.sortedBy { it.id }.forEach { bus ->
             val pins = bus.pins.toSortedMap()
                 .entries
