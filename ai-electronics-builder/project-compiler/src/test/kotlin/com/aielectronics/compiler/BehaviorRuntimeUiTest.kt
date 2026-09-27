@@ -91,7 +91,18 @@ class BehaviorRuntimeUiTest {
         val behavior = DefaultBehaviorCompiler().compile(req, capabilities).getOrThrow()
 
         return DefaultDesignCoreAssembler()
-            .assemble(req, capabilities, board, components, graph, behavior, report)
+            .assemble(
+                req,
+                capabilities,
+                board,
+                components,
+                graph,
+                behavior,
+                report,
+                DefaultOfflineAutonomyCompiler()
+                    .compile(req, capabilities, behavior)
+                    .getOrThrow(),
+            )
             .getOrThrow()
     }
 
