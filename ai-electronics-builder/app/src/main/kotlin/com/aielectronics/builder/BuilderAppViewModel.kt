@@ -829,17 +829,60 @@ class BuilderAppViewModel(
 
             while (isActive) {
                 val snapshot = _state.value
-                val connection = snapshot.connection
                 val bundle = snapshot.bundle
 
-                if (connection == null || bundle == null) {
+                if (bundle == null) {
                     _state.update {
                         it.copy(
                             base44BridgeOnline = false,
                             base44BridgeStatus =
-                                "CircuitFlow連携済み。実機接続後に同期を開始します。",
+                                "CircuitFlow連携済み。設計データの準備を待っています。",
                         )
                     }
+                    delay(BRIDGE_SYNC_INTERVAL_MS)
+                    continue
+                }
+
+                val contract = visualAppLayoutContract(
+                    bundle = bundle,
+                    baseContract =
+                        bundle.softwarePlan.base44Handoff?.integration,
+                    positions = snapshot.graphNodePositions,
+                )
+                val connection = snapshot.connection
+
+                if (connection == null) {
+                    runCatching {
+                        bridge.sync(
+                            credentials = credentials,
+                            telemetry = emptyMap(),
+                            settings = emptyMap(),
+                            contract = contract,
+                            hardwareConnected = false,
+                            acknowledgements = acknowledgements,
+                        )
+                    }.onSuccess {
+                        acknowledgements = emptyList()
+                        _state.update {
+                            it.copy(
+                                base44BridgeOnline = true,
+                                base44BridgeStatus =
+                                    "CircuitFlowと画面構成を同期中。実機は未接続です。",
+                                bridgeLastSyncAtEpochMs =
+                                    System.currentTimeMillis(),
+                            )
+                        }
+                    }.onFailure { throwable ->
+                        _state.update {
+                            it.copy(
+                                base44BridgeOnline = false,
+                                base44BridgeStatus =
+                                    "CircuitFlow同期エラー: " +
+                                        (throwable.message ?: "通信失敗"),
+                            )
+                        }
+                    }
+
                     delay(BRIDGE_SYNC_INTERVAL_MS)
                     continue
                 }
@@ -848,36 +891,31 @@ class BuilderAppViewModel(
                     val runtime = RuntimeControlClient(connection.transport)
                     val telemetry = runtime.telemetry()
                     val settings = runtime.loadSettings(bundle.uiSpec)
-                    val contract = visualAppLayoutContract(
-                        bundle = bundle,
-                        baseContract =
-                            bundle.softwarePlan.base44Handoff?.integration,
-                        positions = snapshot.graphNodePositions,
-                    )
                     bridge.sync(
                         credentials = credentials,
                         telemetry = telemetry,
                         settings = settings,
                         contract = contract,
+                        hardwareConnected = true,
                         acknowledgements = acknowledgements,
                     )
                 }.onSuccess { sync ->
                     val runtime = RuntimeControlClient(connection.transport)
-                    val activeContract =
-                        bundle.softwarePlan.base44Handoff?.integration
                     val nextAcks = sync.commands.map { command ->
                         executeBridgeCommand(
                             runtime = runtime,
                             command = command,
-                            contract = activeContract,
+                            contract = contract,
                         )
                     }
                     acknowledgements = nextAcks
                     _state.update {
                         it.copy(
                             base44BridgeOnline = true,
-                            base44BridgeStatus = "CircuitFlowと実機データを同期中",
-                            bridgeLastSyncAtEpochMs = System.currentTimeMillis(),
+                            base44BridgeStatus =
+                                "CircuitFlowと実機データを同期中",
+                            bridgeLastSyncAtEpochMs =
+                                System.currentTimeMillis(),
                         )
                     }
                 }.onFailure { throwable ->
