@@ -13,6 +13,7 @@ import com.aielectronics.application.FrictionTelemetryRecorder
 import com.aielectronics.application.InMemoryProjectRepository
 import com.aielectronics.application.ProjectRepository
 import com.aielectronics.application.ProjectTitle
+import com.aielectronics.application.SavedGraphNodePosition
 import com.aielectronics.application.SavedProject
 import com.aielectronics.ble.android.AndroidBleRuntimeConnector
 import com.aielectronics.compiler.CompileResult
@@ -20,7 +21,6 @@ import com.aielectronics.compiler.RequirementResolution
 import com.aielectronics.core.model.AppBridgeDirection
 import com.aielectronics.core.model.AppHardwareIntegrationContract
 import com.aielectronics.core.model.ProjectGraphNodeKind
-import com.aielectronics.core.model.ProjectGraphPosition
 import com.aielectronics.core.model.ReleaseBundle
 import com.aielectronics.core.model.ResolvedRequirements
 import com.aielectronics.control.RuntimeControlClient
@@ -96,12 +96,12 @@ class BuilderAppViewModel(
 
     fun moveGraphNode(
         nodeId: String,
-        position: ProjectGraphPosition,
+        position: SavedGraphNodePosition,
     ) {
         val graph = _state.value.bundle?.projectGraph ?: return
         if (graph.nodes.none { it.id == nodeId }) return
 
-        val normalized = ProjectGraphPosition(
+        val normalized = SavedGraphNodePosition(
             x = position.x.coerceIn(0.02, 0.98),
             y = position.y.coerceIn(0.10, 0.96),
         )
@@ -938,7 +938,7 @@ class BuilderAppViewModel(
     private fun visualAppLayoutContract(
         bundle: ReleaseBundle,
         baseContract: AppHardwareIntegrationContract?,
-        positions: Map<String, ProjectGraphPosition>,
+        positions: Map<String, SavedGraphNodePosition>,
     ): AppHardwareIntegrationContract? {
         val contract = baseContract ?: return null
         if (positions.isEmpty() || contract.pages.isEmpty()) return contract
