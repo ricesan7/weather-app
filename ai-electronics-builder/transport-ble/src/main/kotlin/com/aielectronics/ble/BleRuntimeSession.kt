@@ -10,6 +10,7 @@ data class RuntimeCapabilities(
     val settings: Boolean,
     val selfTest: Boolean,
     val telemetry: Boolean,
+    val driverProfileFamilies: Set<String> = emptySet(),
 )
 
 class BleRuntimeSession(
@@ -36,6 +37,13 @@ class BleRuntimeSession(
             settings = response.fields["settings"] == "true",
             selfTest = response.fields["self_test"] == "true",
             telemetry = response.fields["telemetry"] == "true",
+            driverProfileFamilies =
+                response.fields["driver_profile_families"]
+                    .orEmpty()
+                    .split(",")
+                    .map(String::trim)
+                    .filter(String::isNotBlank)
+                    .toSet(),
         )
     }
 }
