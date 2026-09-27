@@ -844,9 +844,9 @@ class BuilderAppViewModel(
                     continue
                 }
 
-                val contract = visualAppLayoutContract(
-                    bundle = bundle,
-                    baseContract =
+                val contract = VisualAppLayoutResolver.apply(
+                    graph = bundle.projectGraph,
+                    contract =
                         bundle.softwarePlan.base44Handoff?.integration,
                     positions = snapshot.graphNodePositions,
                 )
