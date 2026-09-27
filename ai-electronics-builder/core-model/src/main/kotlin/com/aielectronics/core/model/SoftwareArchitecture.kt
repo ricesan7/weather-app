@@ -53,6 +53,38 @@ data class DeviceBridgeEvent(
     val severity: Severity,
 )
 
+data class Base44TelemetryBinding(
+    val sourceBinding: String,
+    val displayLabel: String,
+    val unit: String? = null,
+    val historyEnabled: Boolean = false,
+)
+
+enum class AlertOperator {
+    ABOVE,
+    BELOW,
+}
+
+enum class AlertEvaluationTarget {
+    BASE44,
+}
+
+data class Base44AlertSpec(
+    val id: String,
+    val label: String,
+    val sourceBinding: String,
+    val operator: AlertOperator,
+    val thresholdBinding: String,
+    val defaultThreshold: Double,
+    val min: Double,
+    val max: Double,
+    val step: Double,
+    val unit: String? = null,
+    val enabledByDefault: Boolean = true,
+    val notificationRequired: Boolean = true,
+    val evaluationTarget: AlertEvaluationTarget = AlertEvaluationTarget.BASE44,
+)
+
 data class Base44HandoffSpec(
     val schemaVersion: String = "1.0",
     val projectId: String,
@@ -60,10 +92,15 @@ data class Base44HandoffSpec(
     val goal: String,
     val uiSpec: UiSpec,
     val bridge: DeviceBridgeSpec,
+    val liveTelemetry: List<Base44TelemetryBinding> = emptyList(),
+    val alerts: List<Base44AlertSpec> = emptyList(),
+    val applicationFeatures: List<String> = emptyList(),
     val applicationResponsibilities: List<String> = listOf(
         "UI and UX",
         "user authentication",
         "cloud data and history",
+        "application settings",
+        "alert evaluation and notifications",
         "automation and AI features",
     ),
     val hardwareBridgeResponsibilities: List<String> = listOf(
