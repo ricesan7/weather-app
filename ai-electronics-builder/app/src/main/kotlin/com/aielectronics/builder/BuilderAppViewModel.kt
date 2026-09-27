@@ -806,6 +806,7 @@ class BuilderAppViewModel(
 
     fun deleteProject(projectId: String) {
         viewModelScope.launch {
+            bridgeCredentialStore?.clear(projectId)
             val savedProjects = withContext(Dispatchers.IO) {
                 projectRepository.delete(projectId)
                 projectRepository.list()
