@@ -99,3 +99,11 @@ interface DiagramCompiler {
 interface DiagnosticCompiler {
     fun compile(core: DesignCore): Result<DiagnosticBundle>
 }
+
+interface SoftwareArchitectureCompiler {
+    fun compile(
+        requirements: ResolvedRequirements,
+        core: DesignCore,
+        ui: UiSpec,
+    ): Result<SoftwarePlan>
+}
