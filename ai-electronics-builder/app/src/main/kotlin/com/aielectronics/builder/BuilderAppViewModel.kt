@@ -1252,24 +1252,65 @@ class BuilderAppViewModel(
                                 recordQuestionPresented(question.slotId)
                             }
                         }
+                        val activeHandoff =
+                            current.base44HandoffRevision != null &&
+                                current.base44HandoffStatus in
+                                    setOf("processing", "needs_input")
+                        val questionText =
+                            result.questions.firstOrNull()?.userQuestion
+                                ?: "追加確認が必要です。"
                         _state.update {
                             it.copy(
                                 busy = false,
                                 pendingQuestions = result.questions,
                                 screen = AppScreen.HOME,
+                                base44HandoffStatus =
+                                    if (activeHandoff) {
+                                        "needs_input"
+                                    } else {
+                                        it.base44HandoffStatus
+                                    },
+                                base44HandoffMessage =
+                                    if (activeHandoff) {
+                                        "Android側で追加確認が必要です: " +
+                                            questionText
+                                    } else {
+                                        it.base44HandoffMessage
+                                    },
+                            )
+                        }
+                        persistCurrent()
+                        if (activeHandoff) {
+                            acknowledgeActiveBase44Handoff(
+                                status = "needs_input",
+                                message =
+                                    "追加確認が必要です: " + questionText,
                             )
                         }
                     }
 
                     is ResolutionResult.Success -> {
                         val previous = _state.value
+                        val activeHandoff =
+                            current.base44HandoffRevision != null &&
+                                current.base44HandoffStatus in
+                                    setOf("processing", "needs_input")
                         val now = System.currentTimeMillis()
-                        val projectId = previous.projectId ?: UUID.randomUUID().toString()
-                        val createdAt = previous.projectCreatedAtEpochMs ?: now
+                        val projectId =
+                            previous.projectId ?: UUID.randomUUID().toString()
+                        val createdAt =
+                            previous.projectCreatedAtEpochMs ?: now
                         val currentConnectionIds =
-                            result.bundle.circuitGraph.connections.map { it.id }.toSet()
+                            result.bundle.circuitGraph.connections
+                                .map { it.id }
+                                .toSet()
                         val preservedCompleted =
-                            previous.completedConnectionIds.intersect(currentConnectionIds)
+                            previous.completedConnectionIds
+                                .intersect(currentConnectionIds)
+                        val validGraphNodeIds =
+                            result.bundle.projectGraph.nodes
+                                .map { it.id }
+                                .toSet()
 
                         val from = previous.screen
                         recordFriction {
@@ -1288,7 +1329,13 @@ class BuilderAppViewModel(
                                 bundle = result.bundle,
                                 screen = AppScreen.DESIGN,
                                 projectId = projectId,
-                                projectTitle = ProjectTitle.fromGoal(it.goalText),
+                                projectTitle =
+                                    if (activeHandoff) {
+                                        it.projectTitle
+                                            ?: ProjectTitle.fromGoal(it.goalText)
+                                    } else {
+                                        ProjectTitle.fromGoal(it.goalText)
+                                    },
                                 projectCreatedAtEpochMs = createdAt,
                                 completedConnectionIds = preservedCompleted,
                                 currentBuildStepIndex =
@@ -1299,23 +1346,110 @@ class BuilderAppViewModel(
                                             ?.lastIndex
                                             ?: 0).coerceAtLeast(0),
                                     ),
+                                graphNodePositions =
+                                    it.graphNodePositions.filterKeys { nodeId ->
+                                        nodeId in validGraphNodeIds
+                                    },
+                                deployed =
+                                    if (activeHandoff) false else it.deployed,
+                                connection =
+                                    if (activeHandoff) null else it.connection,
+                                deployProgress =
+                                    if (activeHandoff) 0 else it.deployProgress,
+                                deployMessage =
+                                    if (activeHandoff) {
+                                        "Base44の確定仕様から設計を更新しました。" +
+                                            "実機への配備前に内容を確認してください。"
+                                    } else {
+                                        it.deployMessage
+                                    },
+                                base44HandoffStatus =
+                                    if (activeHandoff) {
+                                        "compiled"
+                                    } else {
+                                        it.base44HandoffStatus
+                                    },
+                                base44HandoffMessage =
+                                    if (activeHandoff) {
+                                        "設計・電気安全検証・Firmware生成が完了しました。"
+                                    } else {
+                                        it.base44HandoffMessage
+                                    },
                             )
                         }
                         persistCurrent()
+                        if (activeHandoff) {
+                            acknowledgeActiveBase44Handoff(
+                                status = "compiled",
+                                message =
+                                    "設計・電気安全検証・Firmware生成が完了しました。",
+                            )
+                        }
+                        maybeStartBridgeSync()
                     }
 
-                    is ResolutionResult.Error -> _state.update {
-                        it.copy(
-                            busy = false,
-                            error = result.message,
-                        )
+                    is ResolutionResult.Error -> {
+                        val activeHandoff =
+                            current.base44HandoffRevision != null &&
+                                current.base44HandoffStatus in
+                                    setOf("processing", "needs_input")
+                        _state.update {
+                            it.copy(
+                                busy = false,
+                                error = result.message,
+                                base44HandoffStatus =
+                                    if (activeHandoff) {
+                                        "failed"
+                                    } else {
+                                        it.base44HandoffStatus
+                                    },
+                                base44HandoffMessage =
+                                    if (activeHandoff) {
+                                        result.message
+                                    } else {
+                                        it.base44HandoffMessage
+                                    },
+                            )
+                        }
+                        persistCurrent()
+                        if (activeHandoff) {
+                            acknowledgeActiveBase44Handoff(
+                                status = "failed",
+                                message = result.message,
+                            )
+                        }
                     }
                 }
             }.onFailure { throwable ->
+                val message =
+                    throwable.message ?: "設計処理に失敗しました。"
+                val activeHandoff =
+                    current.base44HandoffRevision != null &&
+                        current.base44HandoffStatus in
+                            setOf("processing", "needs_input")
                 _state.update {
                     it.copy(
                         busy = false,
-                        error = throwable.message ?: "設計処理に失敗しました。",
+                        error = message,
+                        base44HandoffStatus =
+                            if (activeHandoff) {
+                                "failed"
+                            } else {
+                                it.base44HandoffStatus
+                            },
+                        base44HandoffMessage =
+                            if (activeHandoff) {
+                                message
+                            } else {
+                                it.base44HandoffMessage
+                            },
+                    )
+                }
+                persistCurrent()
+                if (activeHandoff) {
+                    acknowledgeActiveBase44Handoff(
+                        status = "failed",
+                        message = message,
                     )
                 }
             }
