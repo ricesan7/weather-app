@@ -197,16 +197,20 @@ class Base44BridgeKeepAliveService : Service() {
                     EXTRA_LOCAL_PROJECT_ID,
                     localProjectId,
                 )
-            context.startForegroundService(intent)
+            runCatching {
+                context.startForegroundService(intent)
+            }
         }
 
         fun stop(context: Context) {
-            context.stopService(
-                Intent(
-                    context,
-                    Base44BridgeKeepAliveService::class.java,
+            runCatching {
+                context.stopService(
+                    Intent(
+                        context,
+                        Base44BridgeKeepAliveService::class.java,
+                    )
                 )
-            )
+            }
         }
     }
 }
