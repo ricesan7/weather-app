@@ -71,13 +71,36 @@ class SqliteComponentResearchStore(
     override fun researchedComponents(): List<ComponentSpec> =
         researchRecords()
             .asSequence()
-            .filter {
-                it.status ==
-                    ComponentVerificationStatus.DESIGN_READY
-            }
+            .filter(::electricalDesignEligible)
             .mapNotNull { it.component }
-            .filter { it.designReady }
             .toList()
+
+    private fun electricalDesignEligible(
+        record: ComponentResearchRecord,
+    ): Boolean {
+        if (
+            record.status ==
+                ComponentVerificationStatus.DESIGN_READY
+        ) {
+            return true
+        }
+
+        if (
+            record.status !=
+                ComponentVerificationStatus.VERIFIED ||
+            record.missingFields.isEmpty()
+        ) {
+            return false
+        }
+
+        val runtimeOnly = setOf(
+            "runtime_driver",
+            "runtime_driver_profile",
+        )
+        return record.missingFields.all {
+            it in runtimeOnly
+        }
+    }
 
     @Synchronized
     override fun saveResearchRecord(
