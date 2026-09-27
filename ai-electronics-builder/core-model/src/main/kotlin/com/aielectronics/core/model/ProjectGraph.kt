@@ -16,6 +16,7 @@ enum class ProjectGraphNodeKind {
     EVENT,
     APP,
     UI_PAGE,
+    UI_WIDGET,
     RUNTIME,
 }
 
