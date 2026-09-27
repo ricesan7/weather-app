@@ -16,6 +16,21 @@ public:
     virtual ~RuntimeHardware() = default;
     virtual bool setOutput(const std::string& outputId, const std::string& value) = 0;
     virtual bool runTest(const std::string& command) = 0;
+
+    virtual std::optional<std::string> loadSetting(
+        const std::string&,
+        const std::string&
+    ) {
+        return std::nullopt;
+    }
+
+    virtual bool storeSetting(
+        const std::string&,
+        const std::string&,
+        const std::string&
+    ) {
+        return true;
+    }
 };
 
 struct RuntimeEvent {
