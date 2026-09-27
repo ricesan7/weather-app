@@ -1592,6 +1592,8 @@ class BuilderAppViewModel(
                         },
                 componentResearchRecords = emptyList(),
                 pendingComponentResearchRequests = requests,
+                componentReplacementTarget = null,
+                componentReplacementText = "",
                 error = null,
                 screen = AppScreen.HOME,
             )
