@@ -183,4 +183,5 @@ data class ReleaseBundle(
     val uiSpec: UiSpec,
     val testPlan: TestPlan,
     val softwarePlan: SoftwarePlan = SoftwarePlan(),
+    val projectGraph: ProjectGraph = ProjectGraph.EMPTY,
 )
