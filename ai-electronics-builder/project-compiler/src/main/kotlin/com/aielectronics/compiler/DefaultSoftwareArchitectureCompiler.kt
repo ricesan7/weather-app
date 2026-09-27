@@ -108,7 +108,7 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
                 uiSpec = ui,
                 bridge = bridge,
                 integration = AppHardwareIntegrationContract(
-                    channels = integrationChannels(bridge),
+                    channels = integrationChannels(bridge, ui),
                 ),
                 requestedCapabilities = capabilities,
             ),
@@ -200,26 +200,45 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
 
     private fun integrationChannels(
         bridge: DeviceBridgeSpec,
+        ui: UiSpec,
     ): List<AppBridgeChannel> = buildList {
         bridge.telemetry.forEach { telemetry ->
+            val widget = preferredWidget(ui, telemetry.binding, command = false)
             add(
                 AppBridgeChannel(
                     id = telemetry.id,
                     binding = telemetry.binding,
                     direction = AppBridgeDirection.HARDWARE_TO_BASE44,
                     valueType = telemetry.valueType,
+                    displayName = widgetDisplayName(widget, telemetry.id),
+                    presentation = widgetPresentation(
+                        widget,
+                        fallback = AppBridgePresentation.VALUE,
+                    ),
                     unit = telemetry.unit,
                 )
             )
         }
 
         bridge.commands.forEach { command ->
+            val widget = preferredWidget(ui, command.binding, command = true)
             add(
                 AppBridgeChannel(
                     id = command.id,
                     binding = command.binding,
                     direction = AppBridgeDirection.BASE44_TO_HARDWARE,
                     valueType = command.valueType,
+                    displayName = widgetDisplayName(widget, command.id),
+                    presentation = widgetPresentation(
+                        widget,
+                        fallback = when (command.valueType) {
+                            BridgeValueType.BOOLEAN -> AppBridgePresentation.TOGGLE
+                            BridgeValueType.NUMBER -> AppBridgePresentation.SLIDER
+                            BridgeValueType.ENUM -> AppBridgePresentation.SELECT
+                            BridgeValueType.ACTION -> AppBridgePresentation.BUTTON
+                            else -> AppBridgePresentation.VALUE
+                        },
+                    ),
                     min = command.min,
                     max = command.max,
                     step = command.step,
@@ -235,10 +254,66 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
                     binding = "events." + event.id,
                     direction = AppBridgeDirection.HARDWARE_EVENT_TO_BASE44,
                     valueType = BridgeValueType.TEXT,
+                    displayName = humanize(event.id),
+                    presentation = AppBridgePresentation.EVENT,
                 )
             )
         }
     }
+
+    private fun preferredWidget(
+        ui: UiSpec,
+        binding: String,
+        command: Boolean,
+    ): UiWidget? {
+        val matches = ui.pages
+            .flatMap { it.widgets }
+            .filter { it.binding == binding }
+
+        if (command) return matches.firstOrNull()
+
+        return matches.minByOrNull { widget ->
+            when (widget) {
+                is UiWidget.Gauge -> 0
+                is UiWidget.ValueCard -> 1
+                is UiWidget.Status -> 2
+                is UiWidget.Alarm -> 3
+                is UiWidget.LineChart -> 4
+                else -> 5
+            }
+        }
+    }
+
+    private fun widgetDisplayName(
+        widget: UiWidget?,
+        fallbackId: String,
+    ): String = when (widget) {
+        is UiWidget.Button -> widget.label
+        null -> humanize(fallbackId)
+        else -> humanize(widget.id)
+    }
+
+    private fun widgetPresentation(
+        widget: UiWidget?,
+        fallback: AppBridgePresentation,
+    ): AppBridgePresentation = when (widget) {
+        is UiWidget.ValueCard -> AppBridgePresentation.VALUE
+        is UiWidget.Gauge -> AppBridgePresentation.GAUGE
+        is UiWidget.Status -> AppBridgePresentation.STATUS
+        is UiWidget.Alarm -> AppBridgePresentation.EVENT
+        is UiWidget.Toggle -> AppBridgePresentation.TOGGLE
+        is UiWidget.Slider -> AppBridgePresentation.SLIDER
+        is UiWidget.Select -> AppBridgePresentation.SELECT
+        is UiWidget.Button -> AppBridgePresentation.BUTTON
+        is UiWidget.LineChart -> AppBridgePresentation.VALUE
+        null -> fallback
+    }
+
+    private fun humanize(value: String): String =
+        value
+            .replace('_', ' ')
+            .replace('-', ' ')
+            .trim()
 
     private fun telemetryType(binding: String): BridgeValueType = when {
         binding.containsAny(
