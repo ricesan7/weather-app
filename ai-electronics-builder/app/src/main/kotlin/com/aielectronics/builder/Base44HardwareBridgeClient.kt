@@ -1,6 +1,8 @@
 package com.aielectronics.builder
 
 import com.aielectronics.core.model.AppBridgeChannel
+import com.aielectronics.core.model.AppBridgePage
+import com.aielectronics.core.model.AppBridgeWidget
 import com.aielectronics.core.model.AppHardwareIntegrationContract
 import com.aielectronics.core.model.BridgeValueType
 import org.json.JSONArray
@@ -175,6 +177,14 @@ class Base44HardwareBridgeClient(
                     }
                 },
             )
+            put(
+                "pages",
+                JSONArray().apply {
+                    contract.pages.forEach { page ->
+                        put(encodePage(page))
+                    }
+                },
+            )
         }
 
     private fun encodeChannel(channel: AppBridgeChannel): JSONObject =
@@ -192,6 +202,31 @@ class Base44HardwareBridgeClient(
             if (channel.allowedValues.isNotEmpty()) {
                 put("allowed_values", JSONArray(channel.allowedValues))
             }
+        }
+
+    private fun encodePage(page: AppBridgePage): JSONObject =
+        JSONObject().apply {
+            put("id", page.id)
+            put("title", page.title)
+            put("order", page.order)
+            put(
+                "widgets",
+                JSONArray().apply {
+                    page.widgets.forEach { widget ->
+                        put(encodeWidget(widget))
+                    }
+                },
+            )
+        }
+
+    private fun encodeWidget(widget: AppBridgeWidget): JSONObject =
+        JSONObject().apply {
+            put("id", widget.id)
+            put("binding", widget.binding)
+            put("display_name", widget.displayName)
+            put("presentation", widget.presentation.name)
+            put("span", widget.span.name)
+            put("order", widget.order)
         }
 
     private fun jsonValueToString(value: Any?): String = when (value) {
