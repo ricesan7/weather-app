@@ -204,12 +204,12 @@ class DefaultDiagramCompiler(
             ComponentKind.LEVEL_SHIFTER ->
                 DiagramVisualKind.DIP_IC
             ComponentKind.ACTUATOR ->
-                DiagramVisualKind.GENERIC_MODULE
+                DiagramVisualKind.GENERIC
             ComponentKind.DISPLAY,
             ComponentKind.STORAGE,
             ComponentKind.POWER_SUPPLY,
             ComponentKind.OTHER ->
-                DiagramVisualKind.GENERIC_MODULE
+                DiagramVisualKind.GENERIC
         }
         val height =
             (80.0 + spec.pins.size * 24.0)
