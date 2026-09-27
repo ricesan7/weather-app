@@ -110,6 +110,8 @@ object RequestedComponentExtractor {
 
         val normalized = normalize(cleaned)
         if (
+            categoryHint == "board" ||
+            normalized.startsWith("esp32") ||
             normalized.isBlank() ||
             normalized in ignoredTokens ||
             ignoredTokens.any { normalized == normalize(it) }
