@@ -10,11 +10,25 @@ class DefaultManifestCompiler(
 
     override fun compile(core: DesignCore): Result<ProjectManifest> = runCatching {
         val drivers = linkedSetOf<String>()
+        val driverProfiles =
+            linkedMapOf<String, RuntimeDriverProfile>()
         val devices = mutableListOf<ManifestDevice>()
+        val boardSpec =
+            catalog.board(core.board.boardId)
+                ?: error(
+                    "Board spec missing: " +
+                        core.board.boardId
+                )
 
         core.components.forEach { instance ->
             val spec = catalog.component(instance.componentId)
                 ?: error("Component spec missing: " + instance.componentId)
+
+            spec.runtimeDriverProfile
+                ?.takeIf { it.runtimeReady }
+                ?.let { profile ->
+                    driverProfiles[profile.driverId] = profile
+                }
 
             val driverId = spec.driverId ?: when (spec.kind) {
                 ComponentKind.ACTUATOR -> "drv_binary_output"
@@ -41,6 +55,16 @@ class DefaultManifestCompiler(
                         }
                         if (boardEndpoint != null) {
                             config["board_pin"] = boardEndpoint.pinId
+                            boardSpec.pins
+                                .firstOrNull {
+                                    it.pinId ==
+                                        boardEndpoint.pinId
+                                }
+                                ?.gpioNumber
+                                ?.let {
+                                    config["gpio"] =
+                                        it.toString()
+                                }
                         }
                     }
 
@@ -73,6 +97,8 @@ class DefaultManifestCompiler(
             tests = tests,
             minimumRuntimeVersion = minimumRuntimeVersion,
             autonomy = core.autonomy,
+            driverProfiles =
+                driverProfiles.values.toList(),
         )
     }
 
