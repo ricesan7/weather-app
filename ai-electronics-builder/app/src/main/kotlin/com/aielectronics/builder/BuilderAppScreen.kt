@@ -65,6 +65,8 @@ fun BuilderAppScreen(
     onBridgePairingCodeChange: (String) -> Unit,
     onPairBase44: () -> Unit,
     onReceiveBase44Design: () -> Unit,
+    onRetryComponentResearch: () -> Unit,
+    onChangeResearchComponent: (String) -> Unit,
     onBuildProgress: (Set<String>, Int) -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
@@ -114,6 +116,10 @@ fun BuilderAppScreen(
                 onAnswerQuestion = onAnswerQuestion,
                 onBridgePairingCodeChange = onBridgePairingCodeChange,
                 onReceiveBase44Design = onReceiveBase44Design,
+                onRetryComponentResearch =
+                    onRetryComponentResearch,
+                onChangeResearchComponent =
+                    onChangeResearchComponent,
                 onResumeProject = onResumeProject,
                 onDeleteProject = onDeleteProject,
                 onNewProject = onNewProject,
@@ -212,6 +218,24 @@ private fun componentResearchStatusLabel(
     ComponentVerificationStatus.REJECTED -> "採用不可"
 }
 
+private fun componentResearchMissingLabel(
+    field: String,
+): String = when (field) {
+    "manufacturer_evidence" -> "メーカー公式資料"
+    "manufacturer" -> "メーカー名"
+    "model" -> "正式型番"
+    "display_name" -> "表示名"
+    "primary_interface" -> "通信方式"
+    "voltage_range" -> "動作電圧"
+    "pins" -> "ピン定義"
+    "capabilities" -> "機能定義"
+    "i2c_address" -> "I2Cアドレス"
+    "runtime_driver" -> "Runtime Driver"
+    "runtime_driver_profile" ->
+        "Runtime Driver Profileの検証"
+    else -> field
+}
+
 @Composable
 private fun ErrorCard(message: String, onDismiss: () -> Unit) {
     Surface(
@@ -241,6 +265,8 @@ private fun HomeScreen(
     onAnswerQuestion: (String, String) -> Unit,
     onBridgePairingCodeChange: (String) -> Unit,
     onReceiveBase44Design: () -> Unit,
+    onRetryComponentResearch: () -> Unit,
+    onChangeResearchComponent: (String) -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onNewProject: () -> Unit,
@@ -378,7 +404,12 @@ private fun HomeScreen(
                                     Text(
                                         "未完了: " +
                                             record.missingFields
-                                                .joinToString(),
+                                                .joinToString {
+                                                    field ->
+                                                    componentResearchMissingLabel(
+                                                        field
+                                                    )
+                                                },
                                         style =
                                             MaterialTheme.typography.bodySmall,
                                     )
@@ -392,7 +423,53 @@ private fun HomeScreen(
                                             MaterialTheme.typography.bodySmall,
                                     )
                                 }
+                                if (
+                                    record.status !=
+                                        ComponentVerificationStatus.DESIGN_READY &&
+                                    !state.componentResearchActive
+                                ) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            onChangeResearchComponent(
+                                                record.requestedName
+                                            )
+                                        },
+                                        modifier =
+                                            Modifier.fillMaxWidth(),
+                                    ) {
+                                        Text("別部品を選ぶ")
+                                    }
+                                }
                             }
+                        }
+
+                        val waiting =
+                            state.componentResearchRecords.any {
+                                it.status !=
+                                    ComponentVerificationStatus.DESIGN_READY
+                            }
+
+                        if (
+                            waiting &&
+                            !state.componentResearchActive
+                        ) {
+                            Button(
+                                onClick =
+                                    onRetryComponentResearch,
+                                enabled = !state.busy,
+                                modifier =
+                                    Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    "再調査して設計を続行"
+                                )
+                            }
+                            Text(
+                                "公式資料とRuntime Driverをもう一度確認し、" +
+                                    "条件を満たせば自動で設計を再開します。",
+                                style =
+                                    MaterialTheme.typography.bodySmall,
+                            )
                         }
                     }
                 }
