@@ -95,6 +95,8 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
             }
         }
 
+        val appChannels = integrationChannels(bridge, ui)
+
         SoftwarePlan(
             companionSoftwareRequired = true,
             base44DesignRequired = true,
@@ -108,7 +110,8 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
                 uiSpec = ui,
                 bridge = bridge,
                 integration = AppHardwareIntegrationContract(
-                    channels = integrationChannels(bridge, ui),
+                    channels = appChannels,
+                    pages = integrationPages(ui, appChannels),
                 ),
                 requestedCapabilities = capabilities,
             ),
@@ -263,6 +266,69 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
         }
     }
 
+    private fun integrationPages(
+        ui: UiSpec,
+        channels: List<AppBridgeChannel>,
+    ): List<AppBridgePage> {
+        val channelBindings = channels.associateBy { it.binding }
+
+        return ui.pages.mapIndexed { pageIndex, page ->
+            AppBridgePage(
+                id = page.id,
+                title = page.title,
+                order = pageIndex,
+                widgets = page.widgets.mapIndexedNotNull { widgetIndex, widget ->
+                    val binding = appBinding(widget)
+                    val channel = channelBindings[binding]
+
+                    if (channel == null && widget !is UiWidget.LineChart) {
+                        return@mapIndexedNotNull null
+                    }
+
+                    AppBridgeWidget(
+                        id = widget.id,
+                        binding = binding,
+                        displayName = widgetDisplayName(widget, widget.id),
+                        presentation = pagePresentation(widget),
+                        span = widgetSpan(widget),
+                        order = widgetIndex,
+                    )
+                },
+            )
+        }.filter { it.widgets.isNotEmpty() }
+    }
+
+    private fun appBinding(widget: UiWidget): String = when (widget) {
+        is UiWidget.LineChart ->
+            if (widget.binding.startsWith("logging.")) {
+                "telemetry." + widget.binding.removePrefix("logging.")
+            } else {
+                widget.binding
+            }
+        else -> widget.binding
+    }
+
+    private fun pagePresentation(widget: UiWidget): AppBridgePresentation = when (widget) {
+        is UiWidget.ValueCard -> AppBridgePresentation.VALUE
+        is UiWidget.Gauge -> AppBridgePresentation.GAUGE
+        is UiWidget.LineChart -> AppBridgePresentation.LINE_CHART
+        is UiWidget.Toggle -> AppBridgePresentation.TOGGLE
+        is UiWidget.Slider -> AppBridgePresentation.SLIDER
+        is UiWidget.Select -> AppBridgePresentation.SELECT
+        is UiWidget.Button -> AppBridgePresentation.BUTTON
+        is UiWidget.Status -> AppBridgePresentation.STATUS
+        is UiWidget.Alarm -> AppBridgePresentation.ALARM
+    }
+
+    private fun widgetSpan(widget: UiWidget): AppBridgeWidgetSpan = when (widget) {
+        is UiWidget.LineChart,
+        is UiWidget.Alarm -> AppBridgeWidgetSpan.FULL
+        is UiWidget.ValueCard,
+        is UiWidget.Gauge,
+        is UiWidget.Status -> AppBridgeWidgetSpan.THIRD
+        else -> AppBridgeWidgetSpan.HALF
+    }
+
     private fun preferredWidget(
         ui: UiSpec,
         binding: String,
@@ -302,12 +368,12 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
         is UiWidget.ValueCard -> AppBridgePresentation.VALUE
         is UiWidget.Gauge -> AppBridgePresentation.GAUGE
         is UiWidget.Status -> AppBridgePresentation.STATUS
-        is UiWidget.Alarm -> AppBridgePresentation.EVENT
+        is UiWidget.Alarm -> AppBridgePresentation.ALARM
         is UiWidget.Toggle -> AppBridgePresentation.TOGGLE
         is UiWidget.Slider -> AppBridgePresentation.SLIDER
         is UiWidget.Select -> AppBridgePresentation.SELECT
         is UiWidget.Button -> AppBridgePresentation.BUTTON
-        is UiWidget.LineChart -> AppBridgePresentation.VALUE
+        is UiWidget.LineChart -> AppBridgePresentation.LINE_CHART
         null -> fallback
     }
 
