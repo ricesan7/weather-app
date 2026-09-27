@@ -99,6 +99,9 @@ private fun BuilderAppHost() {
         onDeploy = viewModel::deploy,
         onBridgePairingCodeChange = viewModel::setBridgePairingCode,
         onPairBase44 = { viewModel.pairBase44(context) },
+        onReceiveBase44Design = {
+            viewModel.receiveBase44Design(context)
+        },
         onBuildProgress = viewModel::updateBuildProgress,
         onResumeProject = viewModel::resumeProject,
         onDeleteProject = viewModel::deleteProject,
