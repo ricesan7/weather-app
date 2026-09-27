@@ -174,6 +174,62 @@ const COMPONENT_RESEARCH_SCHEMA = {
     i2c_address: { type: "string" },
     requires_external_power: { type: "boolean" },
     driver_id: { type: "string" },
+    driver_profile: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        family: {
+          type: "string",
+          enum: [
+            "GPIO_DIGITAL_INPUT",
+            "GPIO_DIGITAL_OUTPUT",
+            "DHT_PULSE_SENSOR",
+            "I2C_REGISTER_SENSOR",
+            "NONE"
+          ]
+        },
+        sample_interval_ms: { type: "integer" },
+        parameters: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              key: { type: "string" },
+              value: { type: "string" }
+            },
+            required: ["key", "value"]
+          }
+        },
+        telemetry: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              id: { type: "string" },
+              unit: { type: "string" },
+              source: { type: "string" },
+              scale: { type: "number" },
+              offset: { type: "number" }
+            },
+            required: [
+              "id",
+              "unit",
+              "source",
+              "scale",
+              "offset"
+            ]
+          }
+        }
+      },
+      required: [
+        "family",
+        "sample_interval_ms",
+        "parameters",
+        "telemetry"
+      ]
+    },
     capabilities: {
       type: "array",
       items: { type: "string" }
@@ -253,6 +309,7 @@ const COMPONENT_RESEARCH_SCHEMA = {
     "i2c_address",
     "requires_external_power",
     "driver_id",
+    "driver_profile",
     "capabilities",
     "aliases",
     "pins",
@@ -286,8 +343,21 @@ for deployment.
 Capabilities are semantic strings such as measure_temperature, measure_humidity,
 display_visual, sense_button, actuate_fan, switch_load, communicate_rs485.
 
-driver_id must be empty unless a concrete compatible runtime driver is known from the
-provided project context. Do not invent driver names.
+driver_id must be empty unless a concrete compatible built-in runtime driver is known
+from the provided project context. Do not invent driver names.
+
+If no built-in driver is known, return a declarative driver_profile instead of source code.
+driver_profile.family must be one of GPIO_DIGITAL_INPUT, GPIO_DIGITAL_OUTPUT,
+DHT_PULSE_SENSOR, I2C_REGISTER_SENSOR, or NONE.
+
+For DHT11/DHT22, use primary_interface=ONE_WIRE and family=DHT_PULSE_SENSOR.
+Include parameters variant, start_low_us, zero_high_max_us, one_high_min_us from the
+manufacturer documentation. Include telemetry entries for temperature with
+source=DHT_TEMPERATURE and humidity with source=DHT_HUMIDITY.
+
+For a simple GPIO input, use family=GPIO_DIGITAL_INPUT and a telemetry entry with
+source=DIGITAL_STATE. If the protocol cannot be expressed by an allowed profile family,
+return family=NONE. Never return executable source code.
 
 Return Japanese-friendly display names where practical, but preserve exact model numbers.
 `.trim();
