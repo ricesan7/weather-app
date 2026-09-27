@@ -7,7 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import com.aielectronics.application.ProjectRepository
 import com.aielectronics.application.SavedProject
 import com.aielectronics.application.SavedProjectSummary
-import com.aielectronics.core.model.ProjectGraphPosition
+import com.aielectronics.application.SavedGraphNodePosition
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -222,7 +222,7 @@ class SqliteProjectRepository(
     }
 
     private fun encodeGraphPositions(
-        values: Map<String, ProjectGraphPosition>,
+        values: Map<String, SavedGraphNodePosition>,
     ): String {
         val json = JSONObject()
         values.toSortedMap().forEach { (nodeId, position) ->
@@ -239,16 +239,16 @@ class SqliteProjectRepository(
 
     private fun decodeGraphPositions(
         json: String?,
-    ): Map<String, ProjectGraphPosition> {
+    ): Map<String, SavedGraphNodePosition> {
         if (json.isNullOrBlank()) return emptyMap()
         val objectValue = JSONObject(json)
-        val result = linkedMapOf<String, ProjectGraphPosition>()
+        val result = linkedMapOf<String, SavedGraphNodePosition>()
         val keys = objectValue.keys()
 
         while (keys.hasNext()) {
             val nodeId = keys.next()
             val position = objectValue.optJSONObject(nodeId) ?: continue
-            result[nodeId] = ProjectGraphPosition(
+            result[nodeId] = SavedGraphNodePosition(
                 x = position.optDouble("x", 0.5).coerceIn(0.0, 1.0),
                 y = position.optDouble("y", 0.5).coerceIn(0.0, 1.0),
             )
