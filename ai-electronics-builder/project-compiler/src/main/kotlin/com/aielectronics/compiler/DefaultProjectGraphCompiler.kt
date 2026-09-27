@@ -236,6 +236,32 @@ class DefaultProjectGraphCompiler : ProjectGraphCompiler {
                     toNodeId = pageNodeId,
                     kind = ProjectGraphEdgeKind.RENDERS,
                 )
+
+                page.widgets.forEach { widget ->
+                    val widgetNodeId =
+                        "application.widget." + page.id + "." + widget.id
+                    nodes[widgetNodeId] = ProjectGraphNode(
+                        id = widgetNodeId,
+                        label = widgetLabel(widget),
+                        domain = ProjectGraphDomain.APPLICATION,
+                        kind = ProjectGraphNodeKind.UI_WIDGET,
+                        referenceId = widget.id,
+                        metadata = mapOf(
+                            "pageId" to page.id,
+                            "binding" to widget.binding,
+                            "widgetType" to widget::class.simpleName.orEmpty(),
+                        ),
+                    )
+                    val widgetEdgeId =
+                        "application.renders." + page.id + "." + widget.id
+                    edges[widgetEdgeId] = ProjectGraphEdge(
+                        id = widgetEdgeId,
+                        fromNodeId = pageNodeId,
+                        toNodeId = widgetNodeId,
+                        kind = ProjectGraphEdgeKind.RENDERS,
+                        label = widget.binding,
+                    )
+                }
             }
 
             softwarePlan.base44Handoff
@@ -275,6 +301,11 @@ class DefaultProjectGraphCompiler : ProjectGraphCompiler {
             nodes = nodes.values.toList(),
             edges = edges.values.toList(),
         )
+    }
+
+    private fun widgetLabel(widget: UiWidget): String = when (widget) {
+        is UiWidget.Button -> widget.label
+        else -> widget.id
     }
 
     private fun expressionText(expression: Expression): String = when (expression) {
