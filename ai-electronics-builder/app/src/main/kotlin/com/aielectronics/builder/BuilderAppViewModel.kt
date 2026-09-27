@@ -297,6 +297,10 @@ class BuilderAppViewModel(
                 }
             }.onSuccess { credentials ->
                 bridgeCredentialStore?.save(localProjectId, credentials)
+                Base44BridgeKeepAliveService.start(
+                    context.applicationContext,
+                    localProjectId,
+                )
                 _state.update {
                     it.copy(
                         bridgePairingCode = "",
@@ -372,6 +376,10 @@ class BuilderAppViewModel(
                 val localProjectId = UUID.randomUUID().toString()
                 val now = System.currentTimeMillis()
                 bridgeCredentialStore?.save(localProjectId, credentials)
+                Base44BridgeKeepAliveService.start(
+                    context.applicationContext,
+                    localProjectId,
+                )
 
                 val savedProjects = _state.value.savedProjects
                 _state.value = BuilderAppState(
