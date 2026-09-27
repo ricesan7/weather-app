@@ -724,11 +724,13 @@ class BuilderAppViewModel(
                     )
                 }.onSuccess { sync ->
                     val runtime = RuntimeControlClient(connection.transport)
+                    val activeContract =
+                        bundle.softwarePlan.base44Handoff?.integration
                     val nextAcks = sync.commands.map { command ->
                         executeBridgeCommand(
                             runtime = runtime,
                             command = command,
-                            contract = contract,
+                            contract = activeContract,
                         )
                     }
                     acknowledgements = nextAcks
