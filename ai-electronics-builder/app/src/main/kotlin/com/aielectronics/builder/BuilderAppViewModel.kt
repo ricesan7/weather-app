@@ -739,7 +739,10 @@ class BuilderAppViewModel(
                 }
             }.onSuccess { result ->
                 when (result) {
-                    is ResumeResult.Ready -> restoreReadyProject(result)
+                    is ResumeResult.Ready -> {
+                        restoreReadyProject(result)
+                        maybeStartBridgeSync()
+                    }
                     is ResumeResult.NeedsInput -> {
                         _state.update {
                             it.copy(
@@ -757,6 +760,7 @@ class BuilderAppViewModel(
                                 lastSavedAtEpochMs = result.saved.updatedAtEpochMs,
                             )
                         }
+                        maybeStartBridgeSync()
                     }
 
                     is ResumeResult.NeedsCompileInput -> {
@@ -776,6 +780,7 @@ class BuilderAppViewModel(
                                 lastSavedAtEpochMs = result.saved.updatedAtEpochMs,
                             )
                         }
+                        maybeStartBridgeSync()
                     }
 
                     is ResumeResult.Error -> {
