@@ -67,6 +67,9 @@ fun BuilderAppScreen(
     onReceiveBase44Design: () -> Unit,
     onRetryComponentResearch: () -> Unit,
     onChangeResearchComponent: (String) -> Unit,
+    onResearchComponentReplacementChange: (String) -> Unit,
+    onConfirmResearchComponentChange: () -> Unit,
+    onCancelResearchComponentChange: () -> Unit,
     onBuildProgress: (Set<String>, Int) -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
@@ -120,6 +123,12 @@ fun BuilderAppScreen(
                     onRetryComponentResearch,
                 onChangeResearchComponent =
                     onChangeResearchComponent,
+                onResearchComponentReplacementChange =
+                    onResearchComponentReplacementChange,
+                onConfirmResearchComponentChange =
+                    onConfirmResearchComponentChange,
+                onCancelResearchComponentChange =
+                    onCancelResearchComponentChange,
                 onResumeProject = onResumeProject,
                 onDeleteProject = onDeleteProject,
                 onNewProject = onNewProject,
@@ -272,6 +281,9 @@ private fun HomeScreen(
     onReceiveBase44Design: () -> Unit,
     onRetryComponentResearch: () -> Unit,
     onChangeResearchComponent: (String) -> Unit,
+    onResearchComponentReplacementChange: (String) -> Unit,
+    onConfirmResearchComponentChange: () -> Unit,
+    onCancelResearchComponentChange: () -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onNewProject: () -> Unit,
@@ -433,16 +445,69 @@ private fun HomeScreen(
                                         ComponentVerificationStatus.DESIGN_READY &&
                                     !state.componentResearchActive
                                 ) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            onChangeResearchComponent(
-                                                record.requestedName
-                                            )
-                                        },
-                                        modifier =
-                                            Modifier.fillMaxWidth(),
+                                    if (
+                                        state.componentReplacementTarget ==
+                                            record.requestedName
                                     ) {
-                                        Text("別部品を選ぶ")
+                                        OutlinedTextField(
+                                            value =
+                                                state.componentReplacementText,
+                                            onValueChange =
+                                                onResearchComponentReplacementChange,
+                                            modifier =
+                                                Modifier.fillMaxWidth(),
+                                            label = {
+                                                Text(
+                                                    "変更後の部品名・型番"
+                                                )
+                                            },
+                                            supportingText = {
+                                                Text(
+                                                    "例: DHT11 → SHT31 / SSD1306 OLED"
+                                                )
+                                            },
+                                            singleLine = true,
+                                            enabled = !state.busy,
+                                        )
+                                        Button(
+                                            onClick =
+                                                onConfirmResearchComponentChange,
+                                            enabled =
+                                                state.componentReplacementText
+                                                    .isNotBlank() &&
+                                                    !state.busy,
+                                            modifier =
+                                                Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text(
+                                                "この部品に変更して設計を続行"
+                                            )
+                                        }
+                                        OutlinedButton(
+                                            onClick =
+                                                onCancelResearchComponentChange,
+                                            enabled = !state.busy,
+                                            modifier =
+                                                Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text("キャンセル")
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = {
+                                                onChangeResearchComponent(
+                                                    record.requestedName
+                                                )
+                                            },
+                                            enabled =
+                                                state.componentReplacementTarget ==
+                                                    null &&
+                                                    !state.busy,
+                                            modifier =
+                                                Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text("別部品を選ぶ")
+                                        }
                                     }
                                 }
                             }
