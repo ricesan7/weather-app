@@ -53,37 +53,39 @@ data class DeviceBridgeEvent(
     val severity: Severity,
 )
 
-data class Base44TelemetryBinding(
-    val sourceBinding: String,
-    val displayLabel: String,
-    val unit: String? = null,
-    val historyEnabled: Boolean = false,
-)
-
-enum class AlertOperator {
-    ABOVE,
-    BELOW,
+enum class AppBridgeDirection {
+    HARDWARE_TO_BASE44,
+    BASE44_TO_HARDWARE,
+    HARDWARE_EVENT_TO_BASE44,
 }
 
-enum class AlertEvaluationTarget {
-    BASE44,
-}
-
-data class Base44AlertSpec(
+data class AppBridgeChannel(
     val id: String,
-    val label: String,
-    val sourceBinding: String,
-    val operator: AlertOperator,
-    val thresholdBinding: String,
-    val defaultThreshold: Double,
-    val min: Double,
-    val max: Double,
-    val step: Double,
+    val binding: String,
+    val direction: AppBridgeDirection,
+    val valueType: BridgeValueType,
     val unit: String? = null,
-    val enabledByDefault: Boolean = true,
-    val notificationRequired: Boolean = true,
-    val evaluationTarget: AlertEvaluationTarget = AlertEvaluationTarget.BASE44,
+    val min: Double? = null,
+    val max: Double? = null,
+    val step: Double? = null,
+    val allowedValues: List<String> = emptyList(),
 )
+
+data class AppHardwareIntegrationContract(
+    val schemaVersion: String = "1.0",
+    val channels: List<AppBridgeChannel> = emptyList(),
+)
+
+enum class Base44ApplicationCapability {
+    LIVE_DATA,
+    HISTORY,
+    DEVICE_CONTROL,
+    DEVICE_SETTINGS,
+    NOTIFICATIONS,
+    REMOTE_ACCESS,
+    AUTOMATION,
+    AI_FEATURES,
+}
 
 data class Base44HandoffSpec(
     val schemaVersion: String = "1.0",
@@ -92,22 +94,19 @@ data class Base44HandoffSpec(
     val goal: String,
     val uiSpec: UiSpec,
     val bridge: DeviceBridgeSpec,
-    val liveTelemetry: List<Base44TelemetryBinding> = emptyList(),
-    val alerts: List<Base44AlertSpec> = emptyList(),
-    val applicationFeatures: List<String> = emptyList(),
+    val integration: AppHardwareIntegrationContract,
+    val requestedCapabilities: Set<Base44ApplicationCapability> = emptySet(),
     val applicationResponsibilities: List<String> = listOf(
         "UI and UX",
-        "user authentication",
-        "cloud data and history",
-        "application settings",
-        "alert evaluation and notifications",
-        "automation and AI features",
+        "application state and workflows",
+        "optional authentication and cloud features",
+        "history, notifications, automation, and AI when requested",
     ),
     val hardwareBridgeResponsibilities: List<String> = listOf(
         "Android permissions",
         "BLE, USB, and Wi-Fi device access",
         "device command translation",
-        "telemetry transport",
+        "telemetry and event forwarding",
         "firmware deployment and diagnostics",
     ),
 )
