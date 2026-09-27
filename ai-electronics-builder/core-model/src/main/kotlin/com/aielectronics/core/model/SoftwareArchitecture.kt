@@ -45,8 +45,6 @@ data class DeviceBridgeTelemetry(
     val id: String,
     val binding: String,
     val valueType: BridgeValueType,
-    val displayName: String? = null,
-    val presentation: AppBridgePresentation = AppBridgePresentation.VALUE,
     val unit: String? = null,
 )
 
@@ -77,6 +75,8 @@ data class AppBridgeChannel(
     val binding: String,
     val direction: AppBridgeDirection,
     val valueType: BridgeValueType,
+    val displayName: String? = null,
+    val presentation: AppBridgePresentation = AppBridgePresentation.VALUE,
     val unit: String? = null,
     val min: Double? = null,
     val max: Double? = null,
