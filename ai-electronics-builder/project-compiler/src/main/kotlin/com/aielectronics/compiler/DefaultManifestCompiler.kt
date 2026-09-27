@@ -5,7 +5,7 @@ import com.aielectronics.parts.EngineeringCatalog
 
 class DefaultManifestCompiler(
     private val catalog: EngineeringCatalog,
-    private val minimumRuntimeVersion: String = "0.1.0",
+    private val minimumRuntimeVersion: String = "0.2.0",
 ) : ManifestCompiler {
 
     override fun compile(core: DesignCore): Result<ProjectManifest> = runCatching {
