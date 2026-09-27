@@ -48,6 +48,11 @@ class ManifestEncodingTest {
 
         val text = CanonicalManifestEncoder().encode(manifest)
 
+        assertTrue(
+            text.contains(
+                "autonomy\tAUTONOMOUS_MCU\ttrue\ttrue\ttrue\t"
+            )
+        )
         assertTrue(text.contains("rule\tauto_on\t50"))
         assertTrue(text.contains("setting\ttemp_on\tNUMBER\t30.0\ttrue"))
         assertTrue(text.contains("failsafe\tsensor_timeout"))
