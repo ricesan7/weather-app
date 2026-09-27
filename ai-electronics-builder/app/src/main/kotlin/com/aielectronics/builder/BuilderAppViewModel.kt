@@ -555,9 +555,24 @@ class BuilderAppViewModel(
                     }
 
                     is ResolutionResult.Research -> {
+                        _state.update {
+                            it.copy(
+                                revisionCandidateGoalText =
+                                    languageResult.updatedGoal,
+                                revisionClarificationValues =
+                                    revisedClarifications,
+                            )
+                        }
                         runComponentResearch(
                             requests = result.requests,
-                            retry = ::resolveAndCompile,
+                            retry = {
+                                retryRevisionCompilation(
+                                    goal =
+                                        languageResult.updatedGoal,
+                                    clarifications =
+                                        revisedClarifications,
+                                )
+                            },
                         )
                     }
 
@@ -1767,6 +1782,103 @@ class BuilderAppViewModel(
                 graphLayoutRedoStack = emptyList(),
                 selectedGraphNodeId = null,
             )
+        }
+    }
+
+    private fun retryRevisionCompilation(
+        goal: String,
+        clarifications: Map<String, String>,
+    ) {
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    busy = true,
+                    error = null,
+                    revisionStatusMessage =
+                        "調査済み部品を使って追加要望を再検証しています。",
+                )
+            }
+
+            val result =
+                withContext(Dispatchers.Default) {
+                    resolveRevisionCandidate(
+                        goal = goal,
+                        clarifications = clarifications,
+                    )
+                }
+
+            when (result) {
+                is ResolutionResult.Research -> {
+                    runComponentResearch(
+                        requests = result.requests,
+                        retry = {
+                            retryRevisionCompilation(
+                                goal = goal,
+                                clarifications =
+                                    clarifications,
+                            )
+                        },
+                    )
+                }
+
+                is ResolutionResult.Questions -> {
+                    val question =
+                        result.questions.firstOrNull()
+                    if (question == null) {
+                        _state.update {
+                            it.copy(
+                                busy = false,
+                                revisionCandidateGoalText = goal,
+                            )
+                        }
+                        return@launch
+                    }
+                    _state.update {
+                        it.copy(
+                            busy = false,
+                            revisionCandidateGoalText = goal,
+                            revisionClarificationValues =
+                                clarifications,
+                            revisionPendingSlotId =
+                                question.slotId,
+                            revisionMessages =
+                                it.revisionMessages +
+                                    assistantMessage(
+                                        "部品調査後の確認です。" +
+                                            question.userQuestion
+                                    ),
+                        )
+                    }
+                }
+
+                is ResolutionResult.Success -> {
+                    commitRevision(
+                        updatedGoal = goal,
+                        clarifications = clarifications,
+                        requirements =
+                            result.requirements,
+                        bundle = result.bundle,
+                    )
+                }
+
+                is ResolutionResult.Error -> {
+                    _state.update {
+                        it.copy(
+                            busy = false,
+                            revisionCandidateGoalText = goal,
+                            revisionClarificationValues =
+                                clarifications,
+                            revisionStatusMessage =
+                                result.message,
+                            revisionMessages =
+                                it.revisionMessages +
+                                    assistantMessage(
+                                        result.message
+                                    ),
+                        )
+                    }
+                }
+            }
         }
     }
 
