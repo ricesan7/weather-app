@@ -1,6 +1,8 @@
 package com.aielectronics.builder
 
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +23,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,7 +32,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.aielectronics.application.DesignExplanationBuilder
 import com.aielectronics.assembly.GuidedBuildSnapshot
@@ -41,6 +46,8 @@ import com.aielectronics.core.model.DiagramSpec
 import com.aielectronics.core.model.NetType
 import com.aielectronics.core.model.ProjectGraph
 import com.aielectronics.core.model.ProjectGraphDomain
+import com.aielectronics.core.model.ProjectGraphNodeKind
+import com.aielectronics.core.model.ProjectGraphPosition
 import com.aielectronics.parts.GoldenEngineeringCatalog
 
 @Composable
@@ -61,6 +68,12 @@ fun BuilderAppScreen(
     onDeleteProject: (String) -> Unit,
     onNewProject: () -> Unit,
     onOpenBuildStep: (Int) -> Unit,
+    onGraphNodeSelect: (String?) -> Unit,
+    onGraphNodeMove: (String, ProjectGraphPosition) -> Unit,
+    onGraphNodeMoveFinished: () -> Unit,
+    onGraphAddElement: (String) -> Unit,
+    onGraphChangeNode: (String, String) -> Unit,
+    onGraphDeleteNode: (String) -> Unit,
     onClearError: () -> Unit,
 ) {
     Column(
@@ -100,7 +113,16 @@ fun BuilderAppScreen(
                 onNewProject = onNewProject,
             )
             AppScreen.DESIGN -> DesignScreen(state, onOpen)
-            AppScreen.GRAPH -> ProjectGraphScreen(state, onOpen)
+            AppScreen.GRAPH -> ProjectGraphScreen(
+                state = state,
+                onOpen = onOpen,
+                onNodeSelect = onGraphNodeSelect,
+                onNodeMove = onGraphNodeMove,
+                onNodeMoveFinished = onGraphNodeMoveFinished,
+                onAddElement = onGraphAddElement,
+                onChangeNode = onGraphChangeNode,
+                onDeleteNode = onGraphDeleteNode,
+            )
             AppScreen.PARTS -> PartsScreen(state, onOpen)
             AppScreen.WIRING -> WiringScreen(state, onOpen)
             AppScreen.BUILD -> BuildScreen(
@@ -421,29 +443,154 @@ private fun DesignScreen(
 private fun ProjectGraphScreen(
     state: BuilderAppState,
     onOpen: (AppScreen) -> Unit,
+    onNodeSelect: (String?) -> Unit,
+    onNodeMove: (String, ProjectGraphPosition) -> Unit,
+    onNodeMoveFinished: () -> Unit,
+    onAddElement: (String) -> Unit,
+    onChangeNode: (String, String) -> Unit,
+    onDeleteNode: (String) -> Unit,
 ) {
     val bundle = state.bundle ?: return
     val graph = bundle.projectGraph
+    val selectedNode = graph.nodes.firstOrNull {
+        it.id == state.selectedGraphNodeId
+    }
+
+    var addText by remember(graph.schemaVersion) {
+        mutableStateOf("")
+    }
+    var changeText by remember(state.selectedGraphNodeId) {
+        mutableStateOf("")
+    }
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
             InfoCard(
-                "Visual Project",
+                "Visual Project Editor",
                 "ノード " + graph.nodes.size + "個 / 接続 " + graph.edges.size + "本",
             )
         }
         item {
             Text(
-                "ハードウェア、動作、Base44アプリ、実機Runtimeを同じ設計グラフで表示しています。",
+                "ノードをタップして選択し、ドラッグして配置を変更できます。" +
+                    "部品や機能の追加・変更・削除は再設計と安全検証を通して反映します。",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
         item {
-            ProjectGraphCanvas(graph)
+            ProjectGraphCanvas(
+                graph = graph,
+                persistedPositions = state.graphNodePositions,
+                selectedNodeId = state.selectedGraphNodeId,
+                onNodeSelect = onNodeSelect,
+                onNodeMove = onNodeMove,
+                onNodeMoveFinished = onNodeMoveFinished,
+            )
         }
+
+        selectedNode?.let { node ->
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            node.label,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            node.domain.name + " / " + node.kind.name,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        node.metadata
+                            .filterValues { it.isNotBlank() }
+                            .entries
+                            .take(6)
+                            .forEach { (key, value) ->
+                                Text(
+                                    key + ": " + value,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+
+                        OutlinedTextField(
+                            value = changeText,
+                            onValueChange = { changeText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2,
+                            label = { Text("この要素をどう変更しますか？") },
+                            enabled = !state.busy,
+                        )
+                        Button(
+                            onClick = {
+                                onChangeNode(node.id, changeText)
+                                changeText = ""
+                            },
+                            enabled = changeText.isNotBlank() && !state.busy,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(if (state.busy) "再設計中…" else "変更を設計へ反映")
+                        }
+
+                        if (
+                            node.kind != ProjectGraphNodeKind.BOARD &&
+                            node.kind != ProjectGraphNodeKind.RUNTIME
+                        ) {
+                            OutlinedButton(
+                                onClick = { onDeleteNode(node.id) },
+                                enabled = !state.busy,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("この要素を削除")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        "要素を追加",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        "例：照度センサーを追加 / モーターを追加 / スマホに設定画面を追加",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = addText,
+                        onValueChange = { addText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        label = { Text("追加したい部品・機能・画面") },
+                        enabled = !state.busy,
+                    )
+                    Button(
+                        onClick = {
+                            onAddElement(addText)
+                            addText = ""
+                        },
+                        enabled = addText.isNotBlank() && !state.busy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (state.busy) "再設計中…" else "＋ Visual Projectへ追加")
+                    }
+                }
+            }
+        }
+
         item {
             Text(
-                "現在は全体構造の表示段階です。次の実装でノードの選択・移動・追加・削除・AI編集をこの画面へ統合します。",
+                "ドラッグ配置は画面レイアウトとして保存されます。" +
+                    "設計要素の追加・変更・削除はDesignCoreを再生成するため、" +
+                    "回路・BOM・配線・Firmware・Base44アプリも必要に応じて更新されます。",
                 style = MaterialTheme.typography.bodySmall,
             )
         }
@@ -467,8 +614,23 @@ private fun ProjectGraphScreen(
 }
 
 @Composable
-private fun ProjectGraphCanvas(graph: ProjectGraph) {
+private fun ProjectGraphCanvas(
+    graph: ProjectGraph,
+    persistedPositions: Map<String, ProjectGraphPosition>,
+    selectedNodeId: String?,
+    onNodeSelect: (String?) -> Unit,
+    onNodeMove: (String, ProjectGraphPosition) -> Unit,
+    onNodeMoveFinished: () -> Unit,
+) {
     val lanes = graph.lanes.sortedBy { it.order }
+    var livePositions by remember(graph) {
+        mutableStateOf(resolveGraphPositions(graph, persistedPositions))
+    }
+    var draggingNodeId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(graph, persistedPositions) {
+        livePositions = resolveGraphPositions(graph, persistedPositions)
+    }
 
     Card(modifier = Modifier.fillMaxWidth()) {
         Box(
@@ -477,22 +639,85 @@ private fun ProjectGraphCanvas(graph: ProjectGraph) {
                 .aspectRatio(0.78f)
                 .padding(8.dp),
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(graph, livePositions) {
+                        detectTapGestures { offset ->
+                            if (size.width <= 0 || size.height <= 0) return@detectTapGestures
+                            val position = ProjectGraphPosition(
+                                x = offset.x / size.width.toDouble(),
+                                y = offset.y / size.height.toDouble(),
+                            )
+                            onNodeSelect(
+                                findGraphNodeAt(
+                                    graph = graph,
+                                    positions = livePositions,
+                                    position = position,
+                                )
+                            )
+                        }
+                    }
+                    .pointerInput(graph) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                if (size.width <= 0 || size.height <= 0) {
+                                    return@detectDragGestures
+                                }
+                                val position = ProjectGraphPosition(
+                                    x = offset.x / size.width.toDouble(),
+                                    y = offset.y / size.height.toDouble(),
+                                )
+                                draggingNodeId = findGraphNodeAt(
+                                    graph = graph,
+                                    positions = livePositions,
+                                    position = position,
+                                )
+                                onNodeSelect(draggingNodeId)
+                            },
+                            onDragEnd = {
+                                val nodeId = draggingNodeId
+                                val position = nodeId?.let(livePositions::get)
+                                if (nodeId != null && position != null) {
+                                    onNodeMove(nodeId, position)
+                                    onNodeMoveFinished()
+                                }
+                                draggingNodeId = null
+                            },
+                            onDragCancel = {
+                                draggingNodeId = null
+                            },
+                        ) { change, dragAmount ->
+                            val nodeId = draggingNodeId
+                                ?: return@detectDragGestures
+                            val current = livePositions[nodeId]
+                                ?: return@detectDragGestures
+                            if (size.width <= 0 || size.height <= 0) {
+                                return@detectDragGestures
+                            }
+                            change.consume()
+
+                            val requested = ProjectGraphPosition(
+                                x = current.x +
+                                    dragAmount.x / size.width.toDouble(),
+                                y = current.y +
+                                    dragAmount.y / size.height.toDouble(),
+                            )
+                            val next = clampGraphPosition(
+                                graph = graph,
+                                nodeId = nodeId,
+                                position = requested,
+                            )
+                            livePositions =
+                                livePositions + (nodeId to next)
+                        }
+                    }
+            ) {
                 if (lanes.isEmpty()) return@Canvas
 
                 val laneWidth = size.width / lanes.size
-                val topPadding = 52f
-                val bottomPadding = 20f
                 val nodeWidth = laneWidth * 0.78f
-                val nodeHeight = 42f
-                val nodesByDomain = lanes.associate { lane ->
-                    lane.domain to graph.nodes.filter { it.domain == lane.domain }
-                }
-                val maxNodes = nodesByDomain.values.maxOfOrNull { it.size } ?: 1
-                val usableHeight =
-                    (size.height - topPadding - bottomPadding).coerceAtLeast(nodeHeight)
-                val rowSpacing = usableHeight / (maxNodes + 1)
-                val positions = mutableMapOf<String, Offset>()
+                val nodeHeight = (size.height * 0.065f).coerceIn(38f, 54f)
 
                 val titlePaint = android.graphics.Paint().apply {
                     isAntiAlias = true
@@ -525,52 +750,136 @@ private fun ProjectGraphCanvas(graph: ProjectGraph) {
                         28f,
                         titlePaint,
                     )
-
-                    nodesByDomain[lane.domain].orEmpty()
-                        .forEachIndexed { index, node ->
-                            val centerY = topPadding + rowSpacing * (index + 1)
-                            positions[node.id] = Offset(centerX, centerY)
-                        }
                 }
 
                 graph.edges.forEach { edge ->
-                    val start = positions[edge.fromNodeId]
-                    val end = positions[edge.toNodeId]
-                    if (start != null && end != null) {
+                    val startPosition = livePositions[edge.fromNodeId]
+                    val endPosition = livePositions[edge.toNodeId]
+                    if (startPosition != null && endPosition != null) {
                         drawLine(
                             color = Color(0xFF9E9E9E),
-                            start = start,
-                            end = end,
+                            start = Offset(
+                                (startPosition.x * size.width).toFloat(),
+                                (startPosition.y * size.height).toFloat(),
+                            ),
+                            end = Offset(
+                                (endPosition.x * size.width).toFloat(),
+                                (endPosition.y * size.height).toFloat(),
+                            ),
                             strokeWidth = 2.5f,
                         )
                     }
                 }
 
-                lanes.forEach { lane ->
-                    nodesByDomain[lane.domain].orEmpty().forEach { node ->
-                        val center = positions[node.id] ?: return@forEach
-                        val topLeft = Offset(
-                            center.x - nodeWidth / 2f,
-                            center.y - nodeHeight / 2f,
-                        )
+                graph.nodes.forEach { node ->
+                    val normalized = livePositions[node.id] ?: return@forEach
+                    val center = Offset(
+                        (normalized.x * size.width).toFloat(),
+                        (normalized.y * size.height).toFloat(),
+                    )
+                    val topLeft = Offset(
+                        center.x - nodeWidth / 2f,
+                        center.y - nodeHeight / 2f,
+                    )
 
+                    drawRect(
+                        color = projectGraphNodeColor(node.domain),
+                        topLeft = topLeft,
+                        size = Size(nodeWidth, nodeHeight),
+                    )
+
+                    if (node.id == selectedNodeId) {
                         drawRect(
-                            color = projectGraphNodeColor(node.domain),
+                            color = Color(0xFF212121),
                             topLeft = topLeft,
                             size = Size(nodeWidth, nodeHeight),
-                        )
-
-                        drawContext.canvas.nativeCanvas.drawText(
-                            node.label.take(14),
-                            center.x,
-                            center.y + 6f,
-                            nodePaint,
+                            style = Stroke(width = 4f),
                         )
                     }
+
+                    drawContext.canvas.nativeCanvas.drawText(
+                        node.label.take(14),
+                        center.x,
+                        center.y + 6f,
+                        nodePaint,
+                    )
                 }
             }
         }
     }
+}
+
+private fun resolveGraphPositions(
+    graph: ProjectGraph,
+    persisted: Map<String, ProjectGraphPosition>,
+): Map<String, ProjectGraphPosition> {
+    val lanes = graph.lanes.sortedBy { it.order }
+    if (lanes.isEmpty()) return emptyMap()
+
+    val defaults = linkedMapOf<String, ProjectGraphPosition>()
+    lanes.forEachIndexed { laneIndex, lane ->
+        val nodes = graph.nodes.filter { it.domain == lane.domain }
+        nodes.forEachIndexed { index, node ->
+            val x = (laneIndex + 0.5) / lanes.size.toDouble()
+            val y = 0.11 + 0.82 * ((index + 1.0) / (nodes.size + 1.0))
+            defaults[node.id] = ProjectGraphPosition(x = x, y = y)
+        }
+    }
+
+    return defaults.mapValues { (nodeId, fallback) ->
+        persisted[nodeId]
+            ?.let {
+                clampGraphPosition(
+                    graph = graph,
+                    nodeId = nodeId,
+                    position = it,
+                )
+            }
+            ?: fallback
+    }
+}
+
+private fun clampGraphPosition(
+    graph: ProjectGraph,
+    nodeId: String,
+    position: ProjectGraphPosition,
+): ProjectGraphPosition {
+    val lanes = graph.lanes.sortedBy { it.order }
+    val node = graph.nodes.firstOrNull { it.id == nodeId }
+        ?: return ProjectGraphPosition(
+            x = position.x.coerceIn(0.02, 0.98),
+            y = position.y.coerceIn(0.10, 0.96),
+        )
+    val laneIndex = lanes.indexOfFirst { it.domain == node.domain }
+    if (laneIndex < 0) return position
+
+    val laneStart = laneIndex / lanes.size.toDouble()
+    val laneEnd = (laneIndex + 1.0) / lanes.size.toDouble()
+    val margin = 0.025
+
+    return ProjectGraphPosition(
+        x = position.x.coerceIn(laneStart + margin, laneEnd - margin),
+        y = position.y.coerceIn(0.10, 0.96),
+    )
+}
+
+private fun findGraphNodeAt(
+    graph: ProjectGraph,
+    positions: Map<String, ProjectGraphPosition>,
+    position: ProjectGraphPosition,
+): String? {
+    val laneCount = graph.lanes.size.coerceAtLeast(1)
+    val halfWidth = (0.78 / laneCount) / 2.0
+    val halfHeight = 0.042
+
+    return graph.nodes
+        .asReversed()
+        .firstOrNull { node ->
+            val center = positions[node.id] ?: return@firstOrNull false
+            kotlin.math.abs(center.x - position.x) <= halfWidth &&
+                kotlin.math.abs(center.y - position.y) <= halfHeight
+        }
+        ?.id
 }
 
 private fun projectGraphNodeColor(domain: ProjectGraphDomain): Color = when (domain) {
