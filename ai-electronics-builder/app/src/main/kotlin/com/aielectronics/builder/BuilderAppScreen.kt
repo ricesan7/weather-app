@@ -1406,7 +1406,7 @@ private fun ConnectScreen(
                     } else {
                         InfoCard(
                             "Bridge",
-                            "接続済み / 実機接続中は3秒ごとに自動同期",
+                            "接続済み / 画面表示中は3秒同期、バックグラウンドでも10秒ごとに接続維持",
                         )
                     }
                 }
