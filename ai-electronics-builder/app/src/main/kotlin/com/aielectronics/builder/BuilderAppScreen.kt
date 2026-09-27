@@ -351,6 +351,29 @@ private fun HomeScreen(
                                             MaterialTheme.typography.bodySmall,
                                     )
                                 }
+                                record.component
+                                    ?.runtimeDriverProfile
+                                    ?.let { profile ->
+                                        Text(
+                                            "Runtime Driver: " +
+                                                profile.family.name +
+                                                " / " +
+                                                when (
+                                                    profile.status
+                                                ) {
+                                                    com.aielectronics.core.model.RuntimeDriverProfileStatus.RUNTIME_READY ->
+                                                        "実行可能"
+                                                    com.aielectronics.core.model.RuntimeDriverProfileStatus.VALIDATED ->
+                                                        "検証済み・Runtime未対応"
+                                                    com.aielectronics.core.model.RuntimeDriverProfileStatus.GENERATED ->
+                                                        "候補生成"
+                                                    com.aielectronics.core.model.RuntimeDriverProfileStatus.REJECTED ->
+                                                        "採用不可"
+                                                },
+                                            style =
+                                                MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
                                 if (record.missingFields.isNotEmpty()) {
                                     Text(
                                         "未完了: " +
