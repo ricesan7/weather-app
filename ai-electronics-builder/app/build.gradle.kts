@@ -17,7 +17,7 @@ val aiGatewayToken = providers.gradleProperty("AI_GATEWAY_TOKEN")
     .get()
 val base44BridgeUrl = providers.gradleProperty("BASE44_BRIDGE_URL")
     .orElse(providers.environmentVariable("BASE44_BRIDGE_URL"))
-    .orElse("https://base44.app/apps/6ab8775b4a181f8a3257001f/functions/hardwareBridge")
+    .orElse("https://base44.app/api/apps/6ab8775b4a181f8a3257001f/functions/hardwareBridge")
     .get()
 
 android {
