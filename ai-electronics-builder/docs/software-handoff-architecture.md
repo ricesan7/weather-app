@@ -1,99 +1,103 @@
-# Software Handoff Architecture
+# Base44 ↔ Android Hardware App Integration
 
-## Purpose
+## Goal
 
-The Android application in this repository is the trusted hardware runtime and bridge.
-Base44 is the application-layer generator for projects that require smartphone software.
+This architecture is generic. It is not tied to a thermometer, fan, sensor, relay, or any other specific project.
 
-Base44 must not directly own device-specific BLE, USB, Wi-Fi, Android permission, firmware deployment, or diagnostic logic.
+When a physical project needs smartphone software, the system generates two cooperating layers:
 
-## Pipeline
+1. a Base44 application layer,
+2. the existing Android hardware application as the hardware bridge/runtime.
 
-1. User describes the physical product.
-2. Requirement resolution and electrical compilation produce a validated hardware design.
-3. Software architecture detection decides whether companion smartphone software is required.
-4. If no companion software is required, the project remains hardware/firmware only.
-5. If companion software is required, the compiler emits:
-   - a Base44 UI/application handoff,
-   - a semantic Device Bridge contract,
-   - live telemetry bindings,
-   - application-side alert definitions,
-   - the normal firmware/runtime artifacts.
-6. Base44 implements UI, UX, authentication, cloud data, history, application settings, alert evaluation, notifications, automation, and AI features.
-7. The Android Hardware Bridge translates semantic commands to the actual device transport and forwards telemetry upstream.
+The Android hardware application remains the only layer that needs to understand device-specific BLE, USB, Wi-Fi, Android permissions, firmware deployment, and diagnostics.
 
-## Example: temperature monitor
+Base44 works with semantic data and actions instead of device-specific transport details.
 
-A user may request:
-
-> Show the current temperature on the smartphone and notify me when it exceeds 35°C.
-
-The generated architecture is:
+## Conceptual architecture
 
 ```text
-Temperature sensor
-      ↓
-MCU / firmware
-      ↓
-BLE / USB / Wi-Fi
-      ↓
-Android Hardware Bridge
-      ↓ telemetry.temperature
-Base44
-  ├─ Current temperature card
-  ├─ Temperature history
-  ├─ High-temperature threshold setting
-  └─ Alert / notification
+Base44 application
+   │
+   │ semantic app/hardware integration contract
+   │
+Android Hardware Bridge / Runtime
+   │
+   ├─ BLE
+   ├─ USB
+   └─ Wi-Fi
+   │
+Physical device / MCU / sensors / actuators
 ```
 
-The application alert threshold is represented as:
+The Base44 application can therefore be changed or regenerated without rewriting the low-level hardware integration.
+
+## Generated integration contract
+
+The compiler emits generic channels in three directions:
+
+- HARDWARE_TO_BASE44
+  - measured values
+  - states
+  - counters
+  - diagnostic values
+  - other telemetry
+
+- BASE44_TO_HARDWARE
+  - settings
+  - commands
+  - modes
+  - actuator requests
+  - other writable controls
+
+- HARDWARE_EVENT_TO_BASE44
+  - alarms
+  - faults
+  - state changes
+  - other device events
+
+These are semantic bindings such as:
 
 ```text
-appSettings.temperature_high_threshold = 35.0
+telemetry.some_value
+settings.some_setting
+events.some_event
 ```
 
-The threshold is evaluated in the Base44 application layer by default.
-It is not translated into a BLE characteristic write unless the physical device itself also needs that threshold for local autonomous control.
+The contract deliberately does not contain BLE characteristic UUID handling, byte encoding, Android permission flows, or device driver details. Those remain inside the Android Hardware Bridge.
 
-This keeps cloud/app behavior separate from safety-critical device behavior.
+## Base44 responsibilities
 
-## Boundary rule
+Base44 may implement whatever application capabilities the project requires, for example:
 
-Application-side code may send semantic hardware commands such as:
+- live values and status
+- history
+- device controls
+- configurable settings
+- notifications
+- remote access
+- automation
+- AI features
 
-```json
-{
-  "command": "temp_on",
-  "binding": "settings.temp_on",
-  "value": 30
-}
-```
+These are selected from the user's project requirements. No individual example is hard-coded as product behavior.
 
-It must not send Android/BLE implementation instructions such as "write bytes to characteristic X".
-That translation is owned by the Android Hardware Bridge.
+## Hardware app responsibilities
 
-Application-only settings such as a notification threshold remain in Base44:
+The Android hardware app handles:
 
-```json
-{
-  "setting": "appSettings.temperature_high_threshold",
-  "value": 35
-}
-```
+- Android permissions
+- discovering and connecting to hardware
+- BLE / USB / Wi-Fi transport
+- translating semantic commands into device protocol operations
+- forwarding telemetry and events
+- firmware deployment
+- diagnostics
 
-## Generated contract
+## Design principle
 
-`SoftwarePlan` contains:
+A project-specific feature such as displaying a measured value or changing a threshold is only an instance of the generic contract.
 
-- whether companion software is required,
-- whether Base44 design is required,
-- why it was selected,
-- transport selection,
-- command definitions,
-- telemetry definitions,
-- event definitions,
-- live telemetry bindings,
-- configurable application alerts,
-- Base44 UI handoff.
+The permanent specification is:
 
-This contract is generated from the same validated DesignCore and UiSpec as the hardware project, so the software and hardware stay aligned.
+**Base44 application ↔ semantic integration contract ↔ Android Hardware Bridge ↔ physical hardware**
+
+This boundary lets the hardware platform stay stable while different Base44 applications are generated for different devices and use cases.
