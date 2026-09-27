@@ -8,6 +8,8 @@ enum class ElectricalInterface {
     PWM,
     ADC,
     USB,
+    ONE_WIRE,
+    RS485,
 }
 
 enum class ComponentKind {
@@ -28,6 +30,7 @@ enum class SupplyRole {
 }
 
 enum class BoardPinCapability {
+    DIGITAL_IN,
     DIGITAL_OUT,
     PWM,
     I2C_SDA,
@@ -48,6 +51,9 @@ enum class ComponentPinRole {
     CLAMP_COMMON,
     POSITIVE,
     NEGATIVE,
+    DATA,
+    SIGNAL_INPUT,
+    SIGNAL_OUTPUT,
 }
 
 data class VoltageRange(
@@ -102,6 +108,9 @@ data class ComponentSpec(
     val maxLoadCurrentMa: Double? = null,
     val minInputHighVoltageV: Double? = null,
     val sourceIds: Set<String> = emptySet(),
+    val aliases: Set<String> = emptySet(),
+    val verificationStatus: ComponentVerificationStatus =
+        ComponentVerificationStatus.UNREGISTERED,
 )
 
 data class BoardSpec(
