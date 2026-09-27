@@ -91,6 +91,10 @@ class BuilderAppViewModel(
             _state.update { it.copy(error = "Base44 Bridge URLが設定されていません。") }
             return
         }
+        val localProjectId = _state.value.projectId ?: run {
+            _state.update { it.copy(error = "先にプロジェクトを作成してください。") }
+            return
+        }
         val code = _state.value.bridgePairingCode.trim()
         if (code.isBlank()) {
             _state.update { it.copy(error = "CircuitFlowで発行した接続コードを入力してください。") }
@@ -116,7 +120,7 @@ class BuilderAppViewModel(
                     bridge.pair(code, deviceId)
                 }
             }.onSuccess { credentials ->
-                bridgeCredentialStore?.save(credentials)
+                bridgeCredentialStore?.save(localProjectId, credentials)
                 _state.update {
                     it.copy(
                         bridgePairingCode = "",
