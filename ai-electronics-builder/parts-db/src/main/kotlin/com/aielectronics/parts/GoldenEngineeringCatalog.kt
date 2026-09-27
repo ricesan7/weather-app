@@ -52,6 +52,9 @@ object GoldenEngineeringCatalog : EngineeringCatalog {
                 "src_akizuki_ae_sht31_manual",
                 "src_sensirion_sht3x_datasheet",
             ),
+            aliases = setOf("SHT31", "SHT3x", "AE-SHT31"),
+            verificationStatus =
+                ComponentVerificationStatus.DESIGN_READY,
         ),
         ComponentSpec(
             componentId = "fan_ydm2510c05",
@@ -72,6 +75,9 @@ object GoldenEngineeringCatalog : EngineeringCatalog {
                 ComponentPinSpec("cp_fan_ydm2510_black", "BLACK -", ComponentPinRole.NEGATIVE),
             ),
             sourceIds = setOf("src_yccfan_ydm2510c05_datasheet"),
+            aliases = setOf("YDM2510C05"),
+            verificationStatus =
+                ComponentVerificationStatus.DESIGN_READY,
         ),
         ComponentSpec(
             componentId = "tbd62003apg",
@@ -101,6 +107,9 @@ object GoldenEngineeringCatalog : EngineeringCatalog {
             maxLoadCurrentMa = 500.0,
             minInputHighVoltageV = 2.5,
             sourceIds = setOf("src_toshiba_tbd62003"),
+            aliases = setOf("TBD62003", "TBD62003APG"),
+            verificationStatus =
+                ComponentVerificationStatus.DESIGN_READY,
         ),
     )
 
