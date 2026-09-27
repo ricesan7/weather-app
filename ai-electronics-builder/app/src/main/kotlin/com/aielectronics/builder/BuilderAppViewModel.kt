@@ -60,6 +60,8 @@ class BuilderAppViewModel(
 
     private val localRevisionAssistant = LocalRevisionLanguageAssistant()
     private var bridgeJob: Job? = null
+    private var componentResearchRetryAction:
+        (() -> Unit)? = null
 
     private val _state = MutableStateFlow(BuilderAppState())
     val state: StateFlow<BuilderAppState> = _state.asStateFlow()
@@ -621,6 +623,64 @@ class BuilderAppViewModel(
         bridgeJob = null
         val saved = _state.value.savedProjects
         _state.value = BuilderAppState(savedProjects = saved)
+    }
+
+    fun retryPendingComponentResearch() {
+        val current = _state.value
+        if (current.busy || current.componentResearchActive) {
+            return
+        }
+
+        val requests =
+            current.pendingComponentResearchRequests
+        if (requests.isEmpty()) {
+            if (
+                current.componentResearchRecords.isNotEmpty() &&
+                current.componentResearchRecords.all {
+                    it.status ==
+                        ComponentVerificationStatus.DESIGN_READY
+                }
+            ) {
+                resolveAndCompile()
+            } else {
+                _state.update {
+                    it.copy(
+                        error =
+                            "再調査する部品情報がありません。" +
+                                "設計をもう一度実行してください。",
+                    )
+                }
+            }
+            return
+        }
+
+        runComponentResearch(
+            requests = requests,
+            retry =
+                componentResearchRetryAction
+                    ?: ::resolveAndCompile,
+        )
+    }
+
+    fun prepareResearchComponentChange(
+        requestedName: String,
+    ) {
+        val clean = requestedName.trim()
+        if (clean.isBlank()) return
+
+        _state.update {
+            it.copy(
+                screen = AppScreen.REVISION,
+                revisionReturnScreen = AppScreen.HOME,
+                additionalRequestText =
+                    clean +
+                        " は現在検証待ちです。" +
+                        "同じ目的を満たし、" +
+                        "検証済みCatalogまたは" +
+                        "Runtime対応可能な別部品へ変更したいです。",
+                error = null,
+            )
+        }
     }
 
     fun startDesign() {
@@ -1349,6 +1409,7 @@ class BuilderAppViewModel(
         requests: List<ComponentResearchRequest>,
         retry: () -> Unit,
     ) {
+        componentResearchRetryAction = retry
         val store = componentResearchStore
 
         if (store == null) {
@@ -1381,6 +1442,7 @@ class BuilderAppViewModel(
                             request.requested.rawName
                         },
                 componentResearchRecords = emptyList(),
+                pendingComponentResearchRequests = requests,
                 error = null,
                 screen = AppScreen.HOME,
             )
@@ -1430,6 +1492,12 @@ class BuilderAppViewModel(
                     busy = false,
                     componentResearchActive = false,
                     componentResearchRecords = records,
+                    pendingComponentResearchRequests =
+                        if (allReady) {
+                            emptyList()
+                        } else {
+                            requests
+                        },
                     componentResearchMessage =
                         if (allReady) {
                             "部品調査・検証・Catalog登録が完了しました。" +
@@ -1442,6 +1510,7 @@ class BuilderAppViewModel(
             }
 
             if (allReady) {
+                componentResearchRetryAction = null
                 retry()
             } else {
                 val details =
