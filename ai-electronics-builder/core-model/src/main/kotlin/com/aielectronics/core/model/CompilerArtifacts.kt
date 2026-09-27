@@ -182,4 +182,5 @@ data class ReleaseBundle(
     val manifest: ProjectManifest?,
     val uiSpec: UiSpec,
     val testPlan: TestPlan,
+    val softwarePlan: SoftwarePlan = SoftwarePlan(),
 )
