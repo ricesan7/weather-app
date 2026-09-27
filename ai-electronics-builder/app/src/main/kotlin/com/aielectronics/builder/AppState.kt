@@ -9,6 +9,7 @@ import com.aielectronics.core.model.ResolvedRequirements
 enum class AppScreen {
     HOME,
     DESIGN,
+    GRAPH,
     PARTS,
     WIRING,
     BUILD,
