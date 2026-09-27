@@ -48,4 +48,8 @@ data class BuilderAppState(
     val currentBuildStepIndex: Int = 0,
     val savedProjects: List<SavedProjectSummary> = emptyList(),
     val lastSavedAtEpochMs: Long? = null,
+    val bridgePairingCode: String = "",
+    val base44BridgeStatus: String = "",
+    val base44BridgeOnline: Boolean = false,
+    val bridgeLastSyncAtEpochMs: Long? = null,
 )
