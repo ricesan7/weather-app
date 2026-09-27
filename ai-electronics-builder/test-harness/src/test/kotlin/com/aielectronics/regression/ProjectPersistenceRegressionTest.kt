@@ -7,7 +7,7 @@ import com.aielectronics.application.ProjectTitle
 import com.aielectronics.application.SavedProject
 import com.aielectronics.compiler.CompileResult
 import com.aielectronics.compiler.RequirementResolution
-import com.aielectronics.core.model.ProjectGraphPosition
+import com.aielectronics.application.SavedGraphNodePosition
 import kotlin.test.Test
 import kotlin.test.assertEquals
 import kotlin.test.assertNotNull
@@ -45,7 +45,7 @@ class ProjectPersistenceRegressionTest {
                 createdAtEpochMs = 1000,
                 updatedAtEpochMs = 2000,
                 graphNodePositions = mapOf(
-                    "hardware.board" to ProjectGraphPosition(0.12, 0.42),
+                    "hardware.board" to SavedGraphNodePosition(0.12, 0.42),
                 ),
             )
         )
@@ -71,7 +71,7 @@ class ProjectPersistenceRegressionTest {
         assertEquals(completed, restored.completedConnectionIds)
         assertEquals(4, restored.currentBuildStepIndex)
         assertEquals(
-            ProjectGraphPosition(0.12, 0.42),
+            SavedGraphNodePosition(0.12, 0.42),
             restored.graphNodePositions["hardware.board"],
         )
         assertTrue(resumedSteps[4].connectionId !in restored.completedConnectionIds)
