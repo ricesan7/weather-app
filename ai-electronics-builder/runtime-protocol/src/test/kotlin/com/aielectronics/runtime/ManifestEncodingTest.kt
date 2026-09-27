@@ -57,5 +57,105 @@ class ManifestEncodingTest {
         assertTrue(text.contains("setting\ttemp_on\tNUMBER\t30.0\ttrue"))
         assertTrue(text.contains("failsafe\tsensor_timeout"))
         assertTrue(text.contains("set:fan:OFF"))
+        @Test
+    fun `canonical manifest includes verified driver profiles`() {
+        val profile =
+            RuntimeDriverProfile(
+                driverId =
+                    "profile_dht_pulse_sensor_aosong_dht11",
+                family =
+                    RuntimeDriverFamily.DHT_PULSE_SENSOR,
+                interfaceType =
+                    ElectricalInterface.ONE_WIRE,
+                sampleIntervalMs = 2000,
+                parameters =
+                    mapOf(
+                        "variant" to "DHT11",
+                        "start_low_us" to "18000",
+                        "zero_high_max_us" to "40",
+                        "one_high_min_us" to "60",
+                    ),
+                telemetry =
+                    listOf(
+                        RuntimeDriverTelemetrySpec(
+                            id = "temperature",
+                            unit = "C",
+                            source =
+                                "DHT_TEMPERATURE",
+                        ),
+                        RuntimeDriverTelemetrySpec(
+                            id = "humidity",
+                            unit = "%",
+                            source =
+                                "DHT_HUMIDITY",
+                        ),
+                    ),
+                status =
+                    RuntimeDriverProfileStatus.RUNTIME_READY,
+            )
+
+        val manifest =
+            ProjectManifest(
+                version = "1.1",
+                projectId = "dht",
+                boardId = "xiao_esp32s3",
+                drivers = listOf(profile.driverId),
+                buses = emptyList(),
+                gpio = emptyList(),
+                devices =
+                    listOf(
+                        ManifestDevice(
+                            instanceId = "sensor_dht11",
+                            driverId = profile.driverId,
+                            config =
+                                mapOf(
+                                    "board_pin" to
+                                        "pin_xiao_d3_gpio4",
+                                    "gpio" to "4",
+                                ),
+                        )
+                    ),
+                rules = emptyList(),
+                settings = emptyList(),
+                interlocks = emptyList(),
+                failsafe = emptyList(),
+                telemetryIds =
+                    listOf(
+                        "temperature",
+                        "humidity",
+                    ),
+                tests = emptyList(),
+                minimumRuntimeVersion = "0.2.0",
+                driverProfiles = listOf(profile),
+            )
+
+        val text =
+            CanonicalManifestEncoder().encode(manifest)
+
+        assertTrue(
+            text.contains(
+                "driver_profile\t" +
+                    profile.driverId +
+                    "\tDHT_PULSE_SENSOR\tONE_WIRE\t2000"
+            )
+        )
+        assertTrue(
+            text.contains(
+                "variant:DHT11"
+            )
+        )
+        assertTrue(
+            text.contains(
+                "temperature,C,DHT_TEMPERATURE,1.0,0.0"
+            )
+        )
+        assertTrue(
+            text.contains(
+                "device\tsensor_dht11\t" +
+                    profile.driverId +
+                    "\tboard_pin:pin_xiao_d3_gpio4,gpio:4"
+            )
+        )
     }
+}
 }
