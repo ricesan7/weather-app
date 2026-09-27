@@ -12,11 +12,11 @@ class DefaultSoftwareArchitectureCompilerTest {
     private val compiler = DefaultSoftwareArchitectureCompiler()
 
     @Test
-    fun `smartphone request creates Base44 handoff and hardware bridge contract`() {
+    fun `smartphone software creates generic Base44 hardware integration contract`() {
         val core = core(
-            goal = "温度を監視してスマホから設定温度を変更したい",
+            goal = "センサー値をスマホで確認して設定値も変更したい",
             logging = LoggingSpec(
-                channelIds = listOf("temperature"),
+                channelIds = listOf("sensor_value"),
                 intervalSeconds = 60,
                 retentionDays = 7,
                 primaryStorage = StorageTarget.PHONE,
@@ -29,16 +29,16 @@ class DefaultSoftwareArchitectureCompilerTest {
                     title = "状態",
                     widgets = listOf(
                         UiWidget.ValueCard(
-                            id = "temperature",
-                            binding = "telemetry.temperature",
-                            unit = "°C",
+                            id = "sensor_value",
+                            binding = "telemetry.sensor_value",
+                            unit = null,
                         ),
                         UiWidget.Slider(
-                            id = "temp_on",
-                            binding = "settings.temp_on",
+                            id = "target_value",
+                            binding = "settings.target_value",
                             min = 0.0,
-                            max = 60.0,
-                            step = 0.5,
+                            max = 100.0,
+                            step = 1.0,
                         ),
                     ),
                 )
@@ -51,28 +51,37 @@ class DefaultSoftwareArchitectureCompilerTest {
             ui = ui,
         ).getOrThrow()
 
+        val handoff = assertNotNull(plan.base44Handoff)
         assertTrue(plan.companionSoftwareRequired)
         assertTrue(plan.base44DesignRequired)
         assertTrue(plan.hardwareBridgeRequired)
         assertEquals(BridgeTransport.BLE, plan.deviceBridge?.transport)
-        assertEquals("settings.temp_on", plan.deviceBridge?.commands?.single()?.binding)
-        assertEquals("telemetry.temperature", plan.deviceBridge?.telemetry?.single()?.binding)
-        assertEquals("現在温度", plan.base44Handoff?.liveTelemetry?.single()?.displayLabel)
-        assertTrue("live_telemetry" in plan.base44Handoff!!.applicationFeatures)
-        assertNotNull(plan.base44Handoff)
+
+        assertTrue(
+            handoff.integration.channels.any {
+                it.binding == "telemetry.sensor_value" &&
+                    it.direction == AppBridgeDirection.HARDWARE_TO_BASE44
+            }
+        )
+        assertTrue(
+            handoff.integration.channels.any {
+                it.binding == "settings.target_value" &&
+                    it.direction == AppBridgeDirection.BASE44_TO_HARDWARE
+            }
+        )
+        assertTrue(
+            Base44ApplicationCapability.LIVE_DATA in handoff.requestedCapabilities
+        )
+        assertTrue(
+            Base44ApplicationCapability.DEVICE_SETTINGS in handoff.requestedCapabilities
+        )
     }
 
     @Test
-    fun `temperature alert stays in Base44 while device bridge only sends telemetry`() {
-        val goal = "温度をスマホに表示して35℃を超えたらアラート通知したい"
+    fun `notification is a generic Base44 capability not a device specific rule`() {
         val core = core(
-            goal = goal,
-            logging = LoggingSpec(
-                channelIds = listOf("temperature"),
-                intervalSeconds = 30,
-                retentionDays = 30,
-                primaryStorage = StorageTarget.PHONE,
-            ),
+            goal = "センサーの状態をスマホに表示して条件に応じて通知したい",
+            logging = null,
         )
         val ui = UiSpec(
             listOf(
@@ -80,10 +89,9 @@ class DefaultSoftwareArchitectureCompilerTest {
                     id = "dashboard",
                     title = "状態",
                     widgets = listOf(
-                        UiWidget.ValueCard(
-                            id = "temperature",
-                            binding = "telemetry.temperature",
-                            unit = "°C",
+                        UiWidget.Status(
+                            id = "device_state",
+                            binding = "telemetry.device_state",
                         )
                     ),
                 )
@@ -91,38 +99,27 @@ class DefaultSoftwareArchitectureCompilerTest {
         )
 
         val plan = compiler.compile(
-            requirements = ResolvedRequirements(
-                goal = goal,
-                slots = mapOf(
-                    "temp_on" to RequirementValue(
-                        value = "35.0",
-                        source = RequirementSource.USER,
-                        confidence = 1.0,
-                    )
-                ),
-            ),
+            requirements = requirements(core.project.goal),
             core = core,
             ui = ui,
         ).getOrThrow()
 
-        val handoff = plan.base44Handoff!!
-        val alert = handoff.alerts.single()
-
-        assertEquals("telemetry.temperature", alert.sourceBinding)
-        assertEquals("appSettings.temperature_high_threshold", alert.thresholdBinding)
-        assertEquals(35.0, alert.defaultThreshold)
-        assertEquals(AlertEvaluationTarget.BASE44, alert.evaluationTarget)
-        assertTrue(alert.notificationRequired)
-        assertTrue("configurable_alerts" in handoff.applicationFeatures)
-        assertTrue("notifications" in handoff.applicationFeatures)
-        assertTrue(plan.deviceBridge!!.commands.isEmpty())
-        assertEquals("telemetry.temperature", plan.deviceBridge!!.telemetry.single().binding)
+        val handoff = assertNotNull(plan.base44Handoff)
+        assertTrue(
+            Base44ApplicationCapability.NOTIFICATIONS in handoff.requestedCapabilities
+        )
+        assertTrue(
+            handoff.integration.channels.any {
+                it.binding == "telemetry.device_state" &&
+                    it.direction == AppBridgeDirection.HARDWARE_TO_BASE44
+            }
+        )
     }
 
     @Test
     fun `hardware only request does not generate Base44 app`() {
         val core = core(
-            goal = "温度が30度以上ならファンを回す",
+            goal = "センサー値に応じて装置を自動制御する",
             logging = null,
         )
 
@@ -150,10 +147,7 @@ class DefaultSoftwareArchitectureCompilerTest {
     ) = DesignCore(
         schemaVersion = "1.0",
         project = ProjectInfo("project-1", "reference", goal),
-        capabilities = setOf(
-            CapabilityId("measure_temperature"),
-            CapabilityId("generated_ui"),
-        ),
+        capabilities = setOf(CapabilityId("generated_ui")),
         board = BoardSelection(
             boardId = "xiao_esp32s3",
             transports = setOf(TransportKind.BLE),
