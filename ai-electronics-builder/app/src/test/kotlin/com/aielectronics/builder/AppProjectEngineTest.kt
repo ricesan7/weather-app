@@ -182,6 +182,10 @@ class AppProjectEngineTest {
             manifest.driverProfiles.single().driverId,
         )
         assertEquals(
+            "0.3.0",
+            manifest.minimumRuntimeVersion,
+        )
+        assertEquals(
             "4",
             manifest.devices
                 .single {
