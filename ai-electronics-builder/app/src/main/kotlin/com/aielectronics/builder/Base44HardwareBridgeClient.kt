@@ -176,6 +176,8 @@ class Base44HardwareBridgeClient(
             put("binding", channel.binding)
             put("direction", channel.direction.name)
             put("value_type", channel.valueType.name)
+            channel.displayName?.let { put("display_name", it) }
+            put("presentation", channel.presentation.name)
             channel.unit?.let { put("unit", it) }
             channel.min?.let { put("min", it) }
             channel.max?.let { put("max", it) }
