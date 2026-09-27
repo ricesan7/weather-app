@@ -1,5 +1,6 @@
 package com.aielectronics.builder
 
+import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -37,6 +38,14 @@ private fun BuilderAppHost() {
     val repository = remember(context.applicationContext) {
         SqliteProjectRepository(context.applicationContext)
     }
+    val bridgeCredentialStore = remember(context.applicationContext) {
+        Base44BridgeCredentialStore(
+            context.applicationContext.getSharedPreferences(
+                "base44_hardware_bridge",
+                Context.MODE_PRIVATE,
+            )
+        )
+    }
     val revisionAssistant = remember(
         BuildConfig.AI_GATEWAY_URL,
         BuildConfig.AI_GATEWAY_TOKEN,
@@ -54,6 +63,7 @@ private fun BuilderAppHost() {
         factory = BuilderAppViewModel.Factory(
             projectRepository = repository,
             revisionAssistant = revisionAssistant,
+            bridgeCredentialStore = bridgeCredentialStore,
         )
     )
     val state by viewModel.state.collectAsState()
@@ -87,6 +97,8 @@ private fun BuilderAppHost() {
             }
         },
         onDeploy = viewModel::deploy,
+        onBridgePairingCodeChange = viewModel::setBridgePairingCode,
+        onPairBase44 = { viewModel.pairBase44(context) },
         onBuildProgress = viewModel::updateBuildProgress,
         onResumeProject = viewModel::resumeProject,
         onDeleteProject = viewModel::deleteProject,
