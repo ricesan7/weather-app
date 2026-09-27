@@ -17,6 +17,8 @@ import com.aielectronics.application.SavedProject
 import com.aielectronics.ble.android.AndroidBleRuntimeConnector
 import com.aielectronics.compiler.CompileResult
 import com.aielectronics.compiler.RequirementResolution
+import com.aielectronics.core.model.AppBridgeDirection
+import com.aielectronics.core.model.AppHardwareIntegrationContract
 import com.aielectronics.core.model.ReleaseBundle
 import com.aielectronics.core.model.ResolvedRequirements
 import com.aielectronics.control.RuntimeControlClient
@@ -723,7 +725,11 @@ class BuilderAppViewModel(
                 }.onSuccess { sync ->
                     val runtime = RuntimeControlClient(connection.transport)
                     val nextAcks = sync.commands.map { command ->
-                        executeBridgeCommand(runtime, command)
+                        executeBridgeCommand(
+                            runtime = runtime,
+                            command = command,
+                            contract = contract,
+                        )
                     }
                     acknowledgements = nextAcks
                     _state.update {
@@ -753,8 +759,20 @@ class BuilderAppViewModel(
     private fun executeBridgeCommand(
         runtime: RuntimeControlClient,
         command: Base44BridgeCommand,
+        contract: AppHardwareIntegrationContract?,
     ): Base44BridgeAck =
         runCatching {
+            val allowed = contract
+                ?.channels
+                ?.any {
+                    it.binding == command.binding &&
+                        it.direction == AppBridgeDirection.BASE44_TO_HARDWARE
+                } == true
+
+            require(allowed) {
+                "Project ContractにないBridgeコマンドを拒否しました。"
+            }
+
             when {
                 command.binding.startsWith("settings.") -> {
                     val settingId = command.binding.removePrefix("settings.")
