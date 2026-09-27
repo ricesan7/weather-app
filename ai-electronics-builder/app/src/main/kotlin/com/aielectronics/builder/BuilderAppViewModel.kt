@@ -707,10 +707,12 @@ class BuilderAppViewModel(
                 runCatching {
                     val runtime = RuntimeControlClient(connection.transport)
                     val telemetry = runtime.telemetry()
+                    val settings = runtime.loadSettings(bundle.uiSpec)
                     val contract = bundle.softwarePlan.base44Handoff?.integration
                     bridge.sync(
                         credentials = credentials,
                         telemetry = telemetry,
+                        settings = settings,
                         contract = contract,
                         acknowledgements = acknowledgements,
                     )
