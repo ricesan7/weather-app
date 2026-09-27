@@ -11,6 +11,8 @@ class DefaultProjectCompiler(
     private val circuitCompiler: CircuitCompiler,
     private val electricalValidator: ElectricalValidator,
     private val behaviorCompiler: BehaviorCompiler,
+    private val offlineAutonomyCompiler: OfflineAutonomyCompiler =
+        DefaultOfflineAutonomyCompiler(),
     private val coreAssembler: DesignCoreAssembler,
     private val diagramCompiler: DiagramCompiler,
     private val manifestCompiler: ManifestCompiler,
@@ -53,6 +55,12 @@ class DefaultProjectCompiler(
         val behavior = behaviorCompiler.compile(requirements, capabilities)
             .getOrElse { return failed("behavior_compile", it) }
 
+        val autonomy = offlineAutonomyCompiler.compile(
+            requirements = requirements,
+            capabilities = capabilities,
+            behavior = behavior,
+        ).getOrElse { return failed("offline_autonomy_compile", it) }
+
         val core = coreAssembler.assemble(
             requirements = requirements,
             capabilities = capabilities,
@@ -61,6 +69,7 @@ class DefaultProjectCompiler(
             circuitGraph = circuitGraph,
             behavior = behavior,
             validation = validation,
+            autonomy = autonomy,
         ).getOrElse { return failed("design_core_assemble", it) }
 
         val diagrams = diagramCompiler.compile(circuitGraph)
