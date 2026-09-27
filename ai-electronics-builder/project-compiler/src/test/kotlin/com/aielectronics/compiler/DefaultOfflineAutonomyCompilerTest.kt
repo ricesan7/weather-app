@@ -27,6 +27,7 @@ class DefaultOfflineAutonomyCompilerTest {
         val result = compiler.compile(
             requirements = ResolvedRequirements(
                 goal = "センサー値をスマホに表示して設定値を変更したい",
+                slots = emptyMap(),
             ),
             capabilities = capabilities,
             behavior = behavior,
@@ -47,6 +48,7 @@ class DefaultOfflineAutonomyCompilerTest {
         val result = compiler.compile(
             requirements = ResolvedRequirements(
                 goal = "スマホのカメラで判定した結果を使って装置を動かす",
+                slots = emptyMap(),
             ),
             capabilities = capabilities,
             behavior = behavior,
