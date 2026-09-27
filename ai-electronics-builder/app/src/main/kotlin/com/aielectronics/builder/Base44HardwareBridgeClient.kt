@@ -173,6 +173,19 @@ class Base44HardwareBridgeClient(
         )
     }
 
+    fun heartbeat(
+        credentials: Base44BridgeCredentials,
+    ): Boolean =
+        runCatching {
+            post(
+                JSONObject().apply {
+                    put("action", "heartbeat")
+                    put("device_id", credentials.deviceId)
+                    put("device_token", credentials.deviceToken)
+                }
+            ).optBoolean("ok", false)
+        }.getOrDefault(false)
+
     fun health(): Boolean =
         runCatching {
             post(JSONObject().apply { put("action", "health") })
