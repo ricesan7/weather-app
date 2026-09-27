@@ -428,6 +428,19 @@ private fun DesignScreen(
         item {
             InfoCard("安全確認", bundle.validation.state.name)
         }
+        state.base44HandoffRevision?.let { revision ->
+            item {
+                InfoCard(
+                    "Base44 Design Handoff",
+                    "revision " + revision + " / " +
+                        if (state.base44HandoffStatus == "compiled") {
+                            "設計・安全検証完了"
+                        } else {
+                            state.base44HandoffStatus
+                        },
+                )
+            }
+        }
         state.lastSavedAtEpochMs?.let {
             item {
                 InfoCard("保存", "このプロジェクトは端末に自動保存されています")
