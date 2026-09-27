@@ -54,6 +54,8 @@ fun BuilderAppScreen(
     onOpen: (AppScreen) -> Unit,
     onConnect: () -> Unit,
     onDeploy: () -> Unit,
+    onBridgePairingCodeChange: (String) -> Unit,
+    onPairBase44: () -> Unit,
     onBuildProgress: (Set<String>, Int) -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
@@ -110,6 +112,8 @@ fun BuilderAppScreen(
                 state = state,
                 onConnect = onConnect,
                 onDeploy = onDeploy,
+                onBridgePairingCodeChange = onBridgePairingCodeChange,
+                onPairBase44 = onPairBase44,
                 onOpen = onOpen,
             )
             AppScreen.CONTROL -> ControlScreen(
@@ -863,6 +867,8 @@ private fun ConnectScreen(
     state: BuilderAppState,
     onConnect: () -> Unit,
     onDeploy: () -> Unit,
+    onBridgePairingCodeChange: (String) -> Unit,
+    onPairBase44: () -> Unit,
     onOpen: (AppScreen) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -870,6 +876,54 @@ private fun ConnectScreen(
             "接続",
             if (state.connection == null) "未接続" else "BLE接続済み",
         )
+
+        val needsBase44 =
+            state.bundle?.softwarePlan?.base44DesignRequired == true
+
+        if (needsBase44) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        "CircuitFlow / Base44",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        if (state.base44BridgeStatus.isBlank()) {
+                            "CircuitFlowで「接続コードを発行」して、ここへ入力します。"
+                        } else {
+                            state.base44BridgeStatus
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (!state.base44BridgeOnline) {
+                        OutlinedTextField(
+                            value = state.bridgePairingCode,
+                            onValueChange = onBridgePairingCodeChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("接続コード") },
+                            singleLine = true,
+                        )
+                        Button(
+                            onClick = onPairBase44,
+                            enabled =
+                                state.bridgePairingCode.isNotBlank() &&
+                                    !state.busy,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("CircuitFlowと接続")
+                        }
+                    } else {
+                        InfoCard(
+                            "Bridge",
+                            "接続済み / 実機接続中は3秒ごとに自動同期",
+                        )
+                    }
+                }
+            }
+        }
 
         if (state.deployMessage.isNotBlank()) {
             Text(state.deployMessage)
