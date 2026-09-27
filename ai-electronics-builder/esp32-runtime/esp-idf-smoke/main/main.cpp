@@ -217,6 +217,14 @@ void onStackSync() {
     }
 }
 
+void runtimeControlTask(void*) {
+    ESP_LOGI(TAG, "autonomous runtime control task started");
+    while (true) {
+        runtime.tick();
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
+}
+
 void nimbleHostTask(void*) {
     ESP_LOGI(TAG, "NimBLE host task started");
     nimble_port_run();
@@ -267,6 +275,19 @@ extern "C" void app_main(void) {
 
     ble_hs_cfg.reset_cb = onStackReset;
     ble_hs_cfg.sync_cb = onStackSync;
+
+    const BaseType_t runtimeTaskRc = xTaskCreate(
+        runtimeControlTask,
+        "AI Runtime",
+        4096,
+        nullptr,
+        6,
+        nullptr
+    );
+    if (runtimeTaskRc != pdPASS) {
+        ESP_LOGE(TAG, "failed to create autonomous runtime task");
+        return;
+    }
 
     const BaseType_t taskRc = xTaskCreate(
         nimbleHostTask,
