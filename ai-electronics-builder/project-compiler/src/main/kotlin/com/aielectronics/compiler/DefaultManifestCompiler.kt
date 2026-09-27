@@ -95,7 +95,12 @@ class DefaultManifestCompiler(
             failsafe = core.behavior.failsafe,
             telemetryIds = telemetry,
             tests = tests,
-            minimumRuntimeVersion = minimumRuntimeVersion,
+            minimumRuntimeVersion =
+                if (driverProfiles.isNotEmpty()) {
+                    "0.3.0"
+                } else {
+                    minimumRuntimeVersion
+                },
             autonomy = core.autonomy,
             driverProfiles =
                 driverProfiles.values.toList(),
