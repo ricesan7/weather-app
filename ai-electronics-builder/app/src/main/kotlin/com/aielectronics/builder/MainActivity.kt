@@ -16,7 +16,11 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import androidx.lifecycle.viewmodel.compose.viewModel
+import com.aielectronics.application.ApplicationProjectEngine
 import com.aielectronics.ble.android.AndroidBlePermissionPolicy
+import com.aielectronics.parts.CompositeEngineeringCatalog
+import com.aielectronics.parts.GoldenEngineeringCatalog
+import com.aielectronics.storage.android.SqliteComponentResearchStore
 import com.aielectronics.storage.android.SqliteProjectRepository
 
 class MainActivity : ComponentActivity() {
@@ -39,6 +43,39 @@ private fun BuilderAppHost() {
     val repository = remember(context.applicationContext) {
         SqliteProjectRepository(context.applicationContext)
     }
+    val componentResearchStore =
+        remember(context.applicationContext) {
+            SqliteComponentResearchStore(
+                context.applicationContext
+            )
+        }
+    val engineeringCatalog =
+        remember(componentResearchStore) {
+            CompositeEngineeringCatalog(
+                base = GoldenEngineeringCatalog,
+                researched = componentResearchStore,
+            )
+        }
+    val projectEngine =
+        remember(engineeringCatalog) {
+            ApplicationProjectEngine(engineeringCatalog)
+        }
+    val componentResearchClient =
+        remember(
+            BuildConfig.AI_GATEWAY_URL,
+            BuildConfig.AI_GATEWAY_TOKEN,
+        ) {
+            if (BuildConfig.AI_GATEWAY_URL.isBlank()) {
+                null
+            } else {
+                GatewayComponentResearchClient(
+                    revisionEndpoint =
+                        BuildConfig.AI_GATEWAY_URL,
+                    gatewayToken =
+                        BuildConfig.AI_GATEWAY_TOKEN,
+                )
+            }
+        }
     val bridgeCredentialStore = remember(context.applicationContext) {
         Base44BridgeCredentialStore(
             context.applicationContext.getSharedPreferences(
@@ -65,6 +102,11 @@ private fun BuilderAppHost() {
             projectRepository = repository,
             revisionAssistant = revisionAssistant,
             bridgeCredentialStore = bridgeCredentialStore,
+            engine = projectEngine,
+            componentResearchClient =
+                componentResearchClient,
+            componentResearchStore =
+                componentResearchStore,
         )
     )
     val state by viewModel.state.collectAsState()
