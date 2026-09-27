@@ -13,6 +13,7 @@ class DefaultDesignCoreAssembler : DesignCoreAssembler {
         circuitGraph: CircuitGraph,
         behavior: BehaviorCompilation,
         validation: ValidationReport,
+        autonomy: OfflineAutonomySpec,
     ): Result<DesignCore> = runCatching {
         val projectId = requirements.slots["project_id"]?.value
             ?: "project_" + requirements.goal.hashCode().absoluteValue.toString(16)
@@ -62,6 +63,7 @@ class DefaultDesignCoreAssembler : DesignCoreAssembler {
                 state = validation.state,
                 issues = validation.issues,
             ),
+            autonomy = autonomy,
         )
     }
 }
