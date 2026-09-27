@@ -491,6 +491,7 @@ void testBleRuntimeBridge() {
     assert(responseFrame.type == aie::MessageType::CAPABILITIES);
     assert(responseFrame.requestId == "hello-1");
     assert(responseFrame.fields.at("protocol_version") == "1");
+    assert(responseFrame.fields.at("runtime_version") == "0.3.0");
     assert(responseFrame.fields.at("offline_autonomy") == "true");
     assert(responseFrame.fields.at("persistent_manifest") == "true");
     assert(responseFrame.fields.at("persistent_settings") == "true");
