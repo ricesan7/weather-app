@@ -3,6 +3,7 @@
 #include "aie/Expression.hpp"
 #include "aie/Manifest.hpp"
 #include "aie/Value.hpp"
+#include <mutex>
 #include <optional>
 #include <set>
 #include <string>
@@ -84,11 +85,13 @@ private:
     ) const;
 
     void executeActions(const std::vector<std::string>& actions);
+    void recordEvent(const std::string& id);
     std::unordered_map<std::string, Value> context() const;
     const SettingSpec* settingSpec(const std::string& id) const;
 
     RuntimeHardware& hardware_;
     std::set<std::string> supportedDrivers_;
+    mutable std::recursive_mutex mutex_;
     std::optional<Manifest> manifest_;
     std::unordered_map<std::string, std::string> settings_;
     std::unordered_map<std::string, Value> inputs_;
