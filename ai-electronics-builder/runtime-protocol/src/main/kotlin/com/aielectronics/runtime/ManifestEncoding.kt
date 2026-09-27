@@ -15,6 +15,14 @@ class CanonicalManifestEncoder : ProjectManifestEncoder {
         lines += line("meta", "project", manifest.projectId)
         lines += line("meta", "board", manifest.boardId)
         lines += line("meta", "runtime_min", manifest.minimumRuntimeVersion)
+        lines += line(
+            "autonomy",
+            manifest.autonomy.coreOperationMode.name,
+            manifest.autonomy.localBehaviorExecutionRequired.toString(),
+            manifest.autonomy.localSafetyExecutionRequired.toString(),
+            manifest.autonomy.persistRuntimeSettings.toString(),
+            manifest.autonomy.externalInputReason.orEmpty(),
+        )
 
         manifest.drivers.sorted().forEach { driver ->
             lines += line("driver", driver)
