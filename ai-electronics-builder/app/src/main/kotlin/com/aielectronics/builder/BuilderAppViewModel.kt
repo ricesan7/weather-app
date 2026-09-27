@@ -1274,21 +1274,54 @@ class BuilderAppViewModel(
             },
         )
 
+    private suspend fun researchComponent(
+        request: ComponentResearchRequest,
+    ): Result<ComponentResearchRecord> {
+        componentResearchClient?.let { client ->
+            return client.research(request)
+        }
+
+        val projectId = _state.value.projectId
+            ?: return Result.failure(
+                IllegalStateException(
+                    "部品ResearchにはBase44接続またはAI Gateway設定が必要です。"
+                )
+            )
+        val credentials =
+            bridgeCredentialStore?.load(projectId)
+                ?: return Result.failure(
+                    IllegalStateException(
+                        "Base44認証情報がありません。再接続してください。"
+                    )
+                )
+        val bridge =
+            base44BridgeClient
+                ?: return Result.failure(
+                    IllegalStateException(
+                        "Base44 Bridgeが設定されていません。"
+                    )
+                )
+
+        return bridge.researchComponent(
+            credentials = credentials,
+            request = request,
+        )
+    }
+
     private fun runComponentResearch(
         requests: List<ComponentResearchRequest>,
         retry: () -> Unit,
     ) {
-        val client = componentResearchClient
         val store = componentResearchStore
 
-        if (client == null || store == null) {
+        if (store == null) {
             _state.update {
                 it.copy(
                     busy = false,
                     componentResearchActive = false,
                     componentResearchMessage =
                         "未登録部品を検出しましたが、" +
-                            "Component Research Gatewayが設定されていません。",
+                            "Research Catalogの保存先が利用できません。",
                     error =
                         "未登録部品: " +
                             requests.joinToString {
@@ -1321,8 +1354,9 @@ class BuilderAppViewModel(
                 withContext(Dispatchers.IO) {
                     requests.map { request ->
                         val record =
-                            client.research(request)
-                                .getOrElse { throwable ->
+                            researchComponent(
+                                request
+                            ).getOrElse { throwable ->
                                     ComponentResearchRecord(
                                         requestId =
                                             request.requestId,
