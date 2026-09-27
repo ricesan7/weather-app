@@ -64,6 +64,7 @@ class Base44HardwareBridgeClient(
     fun sync(
         credentials: Base44BridgeCredentials,
         telemetry: Map<String, String>,
+        settings: Map<String, String>,
         contract: AppHardwareIntegrationContract?,
         acknowledgements: List<Base44BridgeAck> = emptyList(),
     ): Base44BridgeSyncResult {
@@ -76,6 +77,12 @@ class Base44HardwareBridgeClient(
                     "telemetry",
                     JSONObject().apply {
                         telemetry.forEach { (key, value) -> put(key, value) }
+                    },
+                )
+                put(
+                    "settings",
+                    JSONObject().apply {
+                        settings.forEach { (key, value) -> put(key, value) }
                     },
                 )
                 put(
