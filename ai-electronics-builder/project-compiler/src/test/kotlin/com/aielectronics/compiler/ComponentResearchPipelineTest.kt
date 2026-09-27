@@ -1,6 +1,7 @@
 package com.aielectronics.compiler
 
 import com.aielectronics.core.model.*
+import com.aielectronics.parts.EngineeringCatalog
 import com.aielectronics.parts.GoldenEngineeringCatalog
 import kotlin.test.Test
 import kotlin.test.assertEquals
@@ -79,6 +80,137 @@ class ComponentResearchPipelineTest {
         assertTrue(
             CapabilityId("measure_temperature") in
                 failure.requests.single().requiredCapabilities
+        )
+    }
+
+    @Test
+    fun `electrically verified part can enter design while runtime driver is pending`() {
+        val display =
+            ComponentSpec(
+                componentId = "research_display_ssd1306",
+                displayName = "SSD1306 OLED",
+                kind = ComponentKind.DISPLAY,
+                defaultRole = "display_ssd1306",
+                providesCapabilities =
+                    setOf(CapabilityId("display_visual")),
+                primaryInterface = ElectricalInterface.I2C,
+                voltageRange =
+                    VoltageRange(
+                        minV = 3.0,
+                        typicalV = 3.3,
+                        maxV = 5.0,
+                    ),
+                preferredSupplyVoltageV = 3.3,
+                supplyRole = SupplyRole.LOGIC,
+                pins =
+                    listOf(
+                        ComponentPinSpec(
+                            "vcc",
+                            "VCC",
+                            ComponentPinRole.VCC,
+                        ),
+                        ComponentPinSpec(
+                            "gnd",
+                            "GND",
+                            ComponentPinRole.GND,
+                        ),
+                        ComponentPinSpec(
+                            "sda",
+                            "SDA",
+                            ComponentPinRole.I2C_SDA,
+                        ),
+                        ComponentPinSpec(
+                            "scl",
+                            "SCL",
+                            ComponentPinRole.I2C_SCL,
+                        ),
+                    ),
+                signalRequirements =
+                    listOf(
+                        SignalRequirement(
+                            id = "sda",
+                            boardCapability =
+                                BoardPinCapability.I2C_SDA,
+                            componentPinRole =
+                                ComponentPinRole.I2C_SDA,
+                            netType = NetType.I2C_SDA,
+                            wireSemantic =
+                                WireSemantic.SIGNAL,
+                            shareable = true,
+                        ),
+                        SignalRequirement(
+                            id = "scl",
+                            boardCapability =
+                                BoardPinCapability.I2C_SCL,
+                            componentPinRole =
+                                ComponentPinRole.I2C_SCL,
+                            netType = NetType.I2C_SCL,
+                            wireSemantic =
+                                WireSemantic.SIGNAL,
+                            shareable = true,
+                        ),
+                    ),
+                i2cAddress = "0x3C",
+                aliases = setOf("0.96インチ OLED"),
+                verificationStatus =
+                    ComponentVerificationStatus.VERIFIED,
+                designReady = false,
+            )
+
+        val catalog =
+            object : EngineeringCatalog {
+                override fun components() =
+                    GoldenEngineeringCatalog.components() +
+                        display
+
+                override fun boards() =
+                    GoldenEngineeringCatalog.boards()
+
+                override fun powerSupplies() =
+                    GoldenEngineeringCatalog.powerSupplies()
+            }
+
+        val result =
+            CatalogComponentResolver(catalog)
+                .resolve(
+                    capabilities =
+                        CapabilitySet(
+                            setOf(
+                                CapabilityId(
+                                    "display_visual"
+                                )
+                            )
+                        ),
+                    requirements =
+                        ResolvedRequirements(
+                            goal =
+                                "0.96インチ OLEDに表示する",
+                            slots = emptyMap(),
+                            requestedComponents =
+                                listOf(
+                                    RequestedComponent(
+                                        rawName =
+                                            "0.96インチ OLED",
+                                        categoryHint =
+                                            "display",
+                                    )
+                                ),
+                        ),
+                )
+
+        assertTrue(result.isSuccess)
+        val resolved =
+            result.getOrThrow().components.single {
+                it.componentId ==
+                    "research_display_ssd1306"
+            }
+        assertEquals(
+            "false",
+            resolved.properties["runtime_ready"],
+        )
+        assertEquals(
+            "true",
+            resolved.properties["runtime_required"],
         )
     }
 
