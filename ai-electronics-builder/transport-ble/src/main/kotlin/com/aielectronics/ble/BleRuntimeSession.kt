@@ -6,6 +6,7 @@ import com.aielectronics.runtime.RuntimeTransport
 
 data class RuntimeCapabilities(
     val protocolVersion: Int,
+    val runtimeVersion: String? = null,
     val manifest: Boolean,
     val settings: Boolean,
     val selfTest: Boolean,
@@ -33,6 +34,8 @@ class BleRuntimeSession(
             protocolVersion = response.fields["protocol_version"]
                 ?.toIntOrNull()
                 ?: response.protocolVersion,
+            runtimeVersion =
+                response.fields["runtime_version"],
             manifest = response.fields["manifest"] == "true",
             settings = response.fields["settings"] == "true",
             selfTest = response.fields["self_test"] == "true",
