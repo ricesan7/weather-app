@@ -64,10 +64,10 @@ public:
 
 std::string goldenManifest() {
     return
-        "meta\tversion\t1.0\n"
+        "meta\tversion\t1.1\n"
         "meta\tproject\tgolden\n"
         "meta\tboard\txiao_esp32s3\n"
-        "meta\truntime_min\t0.1.0\n"
+        "meta\truntime_min\t0.2.0\n"
         "autonomy\tAUTONOMOUS_MCU\ttrue\ttrue\ttrue\t\n"
         "driver\tdrv_sht31\n"
         "driver\tdrv_gpio_sink\n"
@@ -372,6 +372,9 @@ void testBleRuntimeBridge() {
     assert(responseFrame.type == aie::MessageType::CAPABILITIES);
     assert(responseFrame.requestId == "hello-1");
     assert(responseFrame.fields.at("protocol_version") == "1");
+    assert(responseFrame.fields.at("offline_autonomy") == "true");
+    assert(responseFrame.fields.at("persistent_manifest") == "true");
+    assert(responseFrame.fields.at("persistent_settings") == "true");
 
     aie::RuntimeFrame deploy;
     deploy.type = aie::MessageType::DEPLOY_MANIFEST;
