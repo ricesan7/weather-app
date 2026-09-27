@@ -5,6 +5,8 @@ import com.aielectronics.core.model.AppBridgePage
 import com.aielectronics.core.model.AppBridgeWidget
 import com.aielectronics.core.model.AppHardwareIntegrationContract
 import com.aielectronics.core.model.BridgeValueType
+import com.aielectronics.core.model.ComponentResearchRecord
+import com.aielectronics.core.model.ComponentResearchRequest
 import org.json.JSONArray
 import org.json.JSONObject
 import java.net.HttpURLConnection
@@ -170,6 +172,41 @@ class Base44HardwareBridgeClient(
         return Base44BridgeSyncResult(
             commands = commands,
             designHandoff = handoff,
+        )
+    }
+
+    fun researchComponent(
+        credentials: Base44BridgeCredentials,
+        request: ComponentResearchRequest,
+    ): Result<ComponentResearchRecord> = runCatching {
+        val json = post(
+            JSONObject().apply {
+                put("action", "research_component")
+                put("device_id", credentials.deviceId)
+                put("device_token", credentials.deviceToken)
+                put(
+                    "requested_name",
+                    request.requested.rawName,
+                )
+                put(
+                    "category_hint",
+                    request.requested.categoryHint.orEmpty(),
+                )
+                put(
+                    "required_capabilities",
+                    JSONArray().apply {
+                        request.requiredCapabilities.forEach {
+                            put(it.value)
+                        }
+                    },
+                )
+                put("project_goal", request.projectGoal)
+            }
+        )
+
+        ComponentResearchResponseValidator.parse(
+            request = request,
+            json = json,
         )
     }
 
