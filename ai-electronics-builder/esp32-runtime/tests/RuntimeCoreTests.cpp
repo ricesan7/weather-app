@@ -26,6 +26,28 @@ public:
         return command != "force_fail";
     }
 
+    bool supportsDriverProfile(
+        const aie::DriverProfileSpec& profile
+    ) const override {
+        return supportedProfileFamilies.count(
+            profile.family
+        ) != 0;
+    }
+
+    std::optional<
+        std::unordered_map<std::string, aie::Value>
+    > sampleDevice(
+        const aie::DeviceSpec&,
+        const aie::DriverProfileSpec&
+    ) override {
+        if (!profileSample) return std::nullopt;
+        return profileSample;
+    }
+
+    std::uint64_t monotonicMillis() const override {
+        return nowMs;
+    }
+
     std::optional<std::string> loadSetting(
         const std::string& projectId,
         const std::string& settingId
@@ -60,6 +82,11 @@ public:
     std::optional<std::string> persistedManifest;
     bool failManifestStore = false;
     std::vector<std::string> tests;
+    std::set<std::string> supportedProfileFamilies;
+    std::optional<
+        std::unordered_map<std::string, aie::Value>
+    > profileSample;
+    std::uint64_t nowMs = 1000;
 };
 
 std::string goldenManifest() {
@@ -84,6 +111,27 @@ std::string goldenManifest() {
         "telemetry\tfan_state\n"
         "test\tsensor_probe\tprobe_required_sensors\ttrue\n"
         "test\tfan_output_test\tfan_on_1s_then_off\ttrue\n";
+}
+
+std::string dhtProfileManifest() {
+    return
+        "meta\tversion\t1.1\n"
+        "meta\tproject\tdht_profile\n"
+        "meta\tboard\txiao_esp32s3\n"
+        "meta\truntime_min\t0.2.0\n"
+        "autonomy\tAUTONOMOUS_MCU\ttrue\ttrue\ttrue\t\n"
+        "driver\tprofile_dht_pulse_sensor_aosong_dht11\n"
+        "driver_profile\tprofile_dht_pulse_sensor_aosong_dht11"
+        "\tDHT_PULSE_SENSOR\tONE_WIRE\t2000"
+        "\tone_high_min_us:60,start_low_us:18000,"
+        "variant:DHT11,zero_high_max_us:40"
+        "\thumidity,%,DHT_HUMIDITY,1.0,0.0;"
+        "temperature,C,DHT_TEMPERATURE,1.0,0.0\n"
+        "device\tsensor_dht11"
+        "\tprofile_dht_pulse_sensor_aosong_dht11"
+        "\tboard_pin:pin_xiao_d3_gpio4,gpio:4\n"
+        "telemetry\ttemperature\n"
+        "telemetry\thumidity\n";
 }
 
 void testExpression() {
@@ -275,6 +323,77 @@ void testUnsupportedDriverBlocked() {
     assert(error.find("Unsupported driver") != std::string::npos);
 }
 
+void testDriverProfileFailsClosedWhenUnsupported() {
+    const auto manifest =
+        aie::ManifestParser().parse(
+            dhtProfileManifest()
+        );
+
+    FakeHardware hardware;
+    aie::RuntimeCore runtime(
+        hardware,
+        std::set<std::string>{}
+    );
+
+    std::string error;
+    assert(!runtime.deploy(manifest, error));
+    assert(
+        error.find("Unsupported driver") !=
+        std::string::npos
+    );
+}
+
+void testDriverProfileSamplesTelemetry() {
+    const auto manifest =
+        aie::ManifestParser().parse(
+            dhtProfileManifest()
+        );
+
+    assert(manifest.driverProfiles.size() == 1);
+    assert(
+        manifest.driverProfiles[0].family ==
+        "DHT_PULSE_SENSOR"
+    );
+
+    FakeHardware hardware;
+    hardware.supportedProfileFamilies.insert(
+        "DHT_PULSE_SENSOR"
+    );
+    hardware.profileSample =
+        std::unordered_map<
+            std::string,
+            aie::Value
+        >{
+            {
+                "DHT_TEMPERATURE",
+                aie::Value(23.5),
+            },
+            {
+                "DHT_HUMIDITY",
+                aie::Value(51.0),
+            },
+        };
+
+    aie::RuntimeCore runtime(
+        hardware,
+        std::set<std::string>{}
+    );
+
+    std::string error;
+    assert(runtime.deploy(manifest, error));
+    runtime.tick();
+
+    const auto telemetry = runtime.telemetry();
+    assert(
+        telemetry.at("temperature").asString() ==
+        "23.5"
+    );
+    assert(
+        telemetry.at("humidity").asString() ==
+        "51"
+    );
+}
+
 void testProtocol() {
     FakeHardware hardware;
     aie::RuntimeCore runtime(
@@ -419,6 +538,8 @@ int main() {
     testPersistedManifestRestoresWithoutPhone();
     testDeploymentFailsClosedWhenManifestCannotPersist();
     testUnsupportedDriverBlocked();
+    testDriverProfileFailsClosedWhenUnsupported();
+    testDriverProfileSamplesTelemetry();
     testProtocol();
     testBlePacketContract();
     testBleRuntimeBridge();
