@@ -21,12 +21,16 @@ import com.aielectronics.compiler.CompileResult
 import com.aielectronics.compiler.RequirementResolution
 import com.aielectronics.core.model.AppBridgeDirection
 import com.aielectronics.core.model.AppHardwareIntegrationContract
+import com.aielectronics.core.model.ComponentResearchRecord
+import com.aielectronics.core.model.ComponentResearchRequest
+import com.aielectronics.core.model.ComponentVerificationStatus
 import com.aielectronics.core.model.ProjectGraphNodeKind
 import com.aielectronics.core.model.ReleaseBundle
 import com.aielectronics.core.model.ResolvedRequirements
 import com.aielectronics.control.RuntimeControlClient
 import com.aielectronics.runtime.CanonicalManifestEncoder
 import com.aielectronics.runtime.RuntimeClient
+import com.aielectronics.parts.ComponentResearchStore
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -50,6 +54,8 @@ class BuilderAppViewModel(
             .takeIf { it.isNotBlank() }
             ?.let(::Base44HardwareBridgeClient),
     private val bridgeCredentialStore: Base44BridgeCredentialStore? = null,
+    private val componentResearchClient: ComponentResearchClient? = null,
+    private val componentResearchStore: ComponentResearchStore? = null,
 ) : ViewModel() {
 
     private val localRevisionAssistant = LocalRevisionLanguageAssistant()
@@ -548,6 +554,13 @@ class BuilderAppViewModel(
                         }
                     }
 
+                    is ResolutionResult.Research -> {
+                        runComponentResearch(
+                            requests = result.requests,
+                            retry = ::resolveAndCompile,
+                        )
+                    }
+
                     is ResolutionResult.Success -> {
                         commitRevision(
                             updatedGoal = languageResult.updatedGoal,
@@ -730,6 +743,12 @@ class BuilderAppViewModel(
                                         questions = compile.questions,
                                     )
 
+                                is CompileResult.NeedsComponentResearch ->
+                                    ResumeResult.Research(
+                                        saved = saved,
+                                        requests = compile.requests,
+                                    )
+
                                 is CompileResult.Blocked ->
                                     ResumeResult.Error(
                                         BeginnerErrorPresenter.validationBlocked(
@@ -752,6 +771,27 @@ class BuilderAppViewModel(
                         restoreReadyProject(result)
                         maybeStartBridgeSync()
                     }
+                    is ResumeResult.Research -> {
+                        _state.update {
+                            it.copy(
+                                projectId = result.saved.id,
+                                projectTitle = result.saved.title,
+                                projectCreatedAtEpochMs =
+                                    result.saved.createdAtEpochMs,
+                                goalText = result.saved.goalText,
+                                clarificationValues =
+                                    result.saved.clarificationValues,
+                                screen = AppScreen.HOME,
+                            )
+                        }
+                        runComponentResearch(
+                            requests = result.requests,
+                            retry = {
+                                resumeProject(result.saved.id)
+                            },
+                        )
+                    }
+
                     is ResumeResult.NeedsInput -> {
                         _state.update {
                             it.copy(
@@ -1234,6 +1274,147 @@ class BuilderAppViewModel(
             },
         )
 
+    private fun runComponentResearch(
+        requests: List<ComponentResearchRequest>,
+        retry: () -> Unit,
+    ) {
+        val client = componentResearchClient
+        val store = componentResearchStore
+
+        if (client == null || store == null) {
+            _state.update {
+                it.copy(
+                    busy = false,
+                    componentResearchActive = false,
+                    componentResearchMessage =
+                        "未登録部品を検出しましたが、" +
+                            "Component Research Gatewayが設定されていません。",
+                    error =
+                        "未登録部品: " +
+                            requests.joinToString {
+                                request ->
+                                request.requested.rawName
+                            },
+                )
+            }
+            return
+        }
+
+        _state.update {
+            it.copy(
+                busy = true,
+                componentResearchActive = true,
+                componentResearchMessage =
+                    "未登録部品を公式資料から調査しています: " +
+                        requests.joinToString {
+                            request ->
+                            request.requested.rawName
+                        },
+                componentResearchRecords = emptyList(),
+                error = null,
+                screen = AppScreen.HOME,
+            )
+        }
+
+        viewModelScope.launch {
+            val records =
+                withContext(Dispatchers.IO) {
+                    requests.map { request ->
+                        val record =
+                            client.research(request)
+                                .getOrElse { throwable ->
+                                    ComponentResearchRecord(
+                                        requestId =
+                                            request.requestId,
+                                        requestedName =
+                                            request.requested.rawName,
+                                        status =
+                                            ComponentVerificationStatus
+                                                .DISCOVERED,
+                                        notes = listOf(
+                                            "Research失敗: " +
+                                                (
+                                                    throwable.message
+                                                        ?: "unknown"
+                                                )
+                                        ),
+                                        researchedAtEpochMs =
+                                            System.currentTimeMillis(),
+                                    )
+                                }
+                        store.saveResearchRecord(record)
+                        record
+                    }
+                }
+
+            val allReady =
+                records.isNotEmpty() &&
+                    records.all {
+                        it.status ==
+                            ComponentVerificationStatus.DESIGN_READY
+                    }
+
+            _state.update {
+                it.copy(
+                    busy = false,
+                    componentResearchActive = false,
+                    componentResearchRecords = records,
+                    componentResearchMessage =
+                        if (allReady) {
+                            "部品調査・検証・Catalog登録が完了しました。" +
+                                "設計を再実行します。"
+                        } else {
+                            "部品調査は完了しましたが、" +
+                                "安全な自動採用に必要な情報が不足しています。"
+                        },
+                )
+            }
+
+            if (allReady) {
+                retry()
+            } else {
+                val details =
+                    records
+                        .filter {
+                            it.status !=
+                                ComponentVerificationStatus.DESIGN_READY
+                        }
+                        .joinToString("\n") { record ->
+                            record.requestedName +
+                                ": " +
+                                (
+                                    record.missingFields
+                                        .joinToString()
+                                        .ifBlank {
+                                            record.status.name
+                                        }
+                                )
+                        }
+                _state.update {
+                    it.copy(
+                        error =
+                            if (details.isBlank()) {
+                                null
+                            } else {
+                                "検証待ち部品:\n" + details
+                            },
+                    )
+                }
+
+                val activeHandoff =
+                    _state.value.base44HandoffRevision != null
+                if (activeHandoff) {
+                    acknowledgeActiveBase44Handoff(
+                        status = "needs_input",
+                        message =
+                            "未登録部品のResearchは完了しましたが、" +
+                                "設計利用に必要な検証が残っています。",
+                    )
+                }
+            }
+        }
+    }
+
     private fun resolveAndCompile() {
         val current = _state.value
         _state.update { it.copy(busy = true, error = null) }
@@ -1259,6 +1440,11 @@ class BuilderAppViewModel(
 
                                 is CompileResult.NeedUserInput ->
                                     ResolutionResult.Questions(compile.questions)
+
+                                is CompileResult.NeedsComponentResearch ->
+                                    ResolutionResult.Research(
+                                        compile.requests
+                                    )
 
                                 is CompileResult.Blocked ->
                                     ResolutionResult.Error(
@@ -1718,6 +1904,10 @@ class BuilderAppViewModel(
         private val revisionAssistant: RevisionLanguageAssistant =
             LocalRevisionLanguageAssistant(),
         private val bridgeCredentialStore: Base44BridgeCredentialStore? = null,
+        private val engine: ApplicationProjectEngine =
+            ApplicationProjectEngine(),
+        private val componentResearchClient: ComponentResearchClient? = null,
+        private val componentResearchStore: ComponentResearchStore? = null,
     ) : ViewModelProvider.Factory {
         @Suppress("UNCHECKED_CAST")
         override fun <T : ViewModel> create(modelClass: Class<T>): T {
@@ -1726,6 +1916,9 @@ class BuilderAppViewModel(
                 projectRepository = projectRepository,
                 revisionAssistant = revisionAssistant,
                 bridgeCredentialStore = bridgeCredentialStore,
+                engine = engine,
+                componentResearchClient = componentResearchClient,
+                componentResearchStore = componentResearchStore,
             ) as T
         }
     }
@@ -1738,6 +1931,10 @@ class BuilderAppViewModel(
     private sealed interface ResolutionResult {
         data class Questions(
             val questions: List<com.aielectronics.core.model.MissingRequirement>,
+        ) : ResolutionResult
+
+        data class Research(
+            val requests: List<ComponentResearchRequest>,
         ) : ResolutionResult
 
         data class Success(
@@ -1763,6 +1960,11 @@ class BuilderAppViewModel(
         data class NeedsCompileInput(
             val saved: SavedProject,
             val questions: List<com.aielectronics.core.model.MissingRequirement>,
+        ) : ResumeResult
+
+        data class Research(
+            val saved: SavedProject,
+            val requests: List<ComponentResearchRequest>,
         ) : ResumeResult
 
         data class Error(val message: String) : ResumeResult
