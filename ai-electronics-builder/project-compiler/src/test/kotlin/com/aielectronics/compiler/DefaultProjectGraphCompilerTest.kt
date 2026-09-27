@@ -116,11 +116,24 @@ class DefaultProjectGraphCompilerTest {
         assertTrue(graph.nodes.any { it.domain == ProjectGraphDomain.HARDWARE })
         assertTrue(graph.nodes.any { it.domain == ProjectGraphDomain.BEHAVIOR })
         assertTrue(graph.nodes.any { it.domain == ProjectGraphDomain.APPLICATION })
+        assertTrue(
+            graph.nodes.any {
+                it.kind == ProjectGraphNodeKind.UI_WIDGET &&
+                    it.referenceId == "sensor_value" &&
+                    it.metadata["pageId"] == "dashboard"
+            }
+        )
         assertTrue(graph.nodes.any { it.domain == ProjectGraphDomain.RUNTIME })
         assertTrue(
             graph.edges.any {
                 it.kind == ProjectGraphEdgeKind.TELEMETRY_TO_APP &&
                     it.label == "telemetry.sensor_value"
+            }
+        )
+        assertTrue(
+            graph.edges.any {
+                it.kind == ProjectGraphEdgeKind.RENDERS &&
+                    it.toNodeId == "application.widget.dashboard.sensor_value"
             }
         )
     }
