@@ -848,7 +848,12 @@ class BuilderAppViewModel(
                     val runtime = RuntimeControlClient(connection.transport)
                     val telemetry = runtime.telemetry()
                     val settings = runtime.loadSettings(bundle.uiSpec)
-                    val contract = bundle.softwarePlan.base44Handoff?.integration
+                    val contract = visualAppLayoutContract(
+                        bundle = bundle,
+                        baseContract =
+                            bundle.softwarePlan.base44Handoff?.integration,
+                        positions = snapshot.graphNodePositions,
+                    )
                     bridge.sync(
                         credentials = credentials,
                         telemetry = telemetry,
@@ -890,6 +895,69 @@ class BuilderAppViewModel(
                 delay(BRIDGE_SYNC_INTERVAL_MS)
             }
         }
+    }
+
+    private fun visualAppLayoutContract(
+        bundle: ReleaseBundle,
+        baseContract: AppHardwareIntegrationContract?,
+        positions: Map<String, ProjectGraphPosition>,
+    ): AppHardwareIntegrationContract? {
+        val contract = baseContract ?: return null
+        if (positions.isEmpty() || contract.pages.isEmpty()) return contract
+
+        val graph = bundle.projectGraph
+        val pageNodeByPageId = graph.nodes
+            .filter { it.kind == ProjectGraphNodeKind.UI_PAGE }
+            .mapNotNull { node ->
+                node.referenceId?.let { pageId -> pageId to node.id }
+            }
+            .toMap()
+
+        val widgetNodeByKey = graph.nodes
+            .filter { it.kind == ProjectGraphNodeKind.UI_WIDGET }
+            .mapNotNull { node ->
+                val pageId = node.metadata["pageId"] ?: return@mapNotNull null
+                val widgetId = node.referenceId ?: return@mapNotNull null
+                (pageId + "::" + widgetId) to node.id
+            }
+            .toMap()
+
+        val orderedPages = contract.pages
+            .sortedWith(
+                compareBy(
+                    { page ->
+                        pageNodeByPageId[page.id]
+                            ?.let(positions::get)
+                            ?.y
+                            ?: (page.order + 1).toDouble()
+                    },
+                    { it.order },
+                )
+            )
+            .mapIndexed { pageIndex, page ->
+                val orderedWidgets = page.widgets
+                    .sortedWith(
+                        compareBy(
+                            { widget ->
+                                widgetNodeByKey[page.id + "::" + widget.id]
+                                    ?.let(positions::get)
+                                    ?.y
+                                    ?: (widget.order + 1).toDouble()
+                            },
+                            { it.order },
+                        )
+                    )
+                    .mapIndexed { widgetIndex, widget ->
+                        widget.copy(order = widgetIndex)
+                    }
+
+                page.copy(
+                    order = pageIndex,
+                    widgets = orderedWidgets,
+                )
+            }
+
+        return contract.copy(pages = orderedPages)
     }
 
     private fun executeBridgeCommand(
