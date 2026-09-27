@@ -468,9 +468,24 @@ private fun ProjectGraphScreen(
     var changeText by remember(state.selectedGraphNodeId) {
         mutableStateOf("")
     }
-    val paletteComponents = remember {
+    var paletteQuery by remember {
+        mutableStateOf("")
+    }
+    val paletteComponents = remember(paletteQuery) {
+        val query = paletteQuery.trim().lowercase()
         GoldenEngineeringCatalog.components()
             .filter { it.designReady && it.providesCapabilities.isNotEmpty() }
+            .filter { component ->
+                query.isBlank() ||
+                    component.displayName.lowercase().contains(query) ||
+                    component.componentId.lowercase().contains(query) ||
+                    component.defaultRole.lowercase().contains(query) ||
+                    component.providesCapabilities.any { capability ->
+                        visualCapabilityLabel(capability.value)
+                            .lowercase()
+                            .contains(query)
+                    }
+            }
     }
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -600,6 +615,20 @@ private fun ProjectGraphScreen(
                             "設計Readyの部品だけを表示しています。必要なドライバや電源部品は再設計時に自動選定します。",
                             style = MaterialTheme.typography.bodySmall,
                         )
+                        OutlinedTextField(
+                            value = paletteQuery,
+                            onValueChange = { paletteQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = { Text("部品・機能を検索") },
+                            enabled = !state.busy,
+                        )
+                        if (paletteComponents.isEmpty()) {
+                            Text(
+                                "一致する検証済み部品はありません。",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
                         paletteComponents.forEach { component ->
                             OutlinedButton(
                                 onClick = {
