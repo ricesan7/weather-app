@@ -194,6 +194,10 @@ class DefaultProjectGraphCompiler : ProjectGraphCompiler {
             kind = ProjectGraphNodeKind.RUNTIME,
             metadata = mapOf(
                 "transport" to softwarePlan.deviceBridge?.transport?.name.orEmpty(),
+                "coreOperationMode" to core.autonomy.coreOperationMode.name,
+                "localSafety" to core.autonomy.localSafetyExecutionRequired.toString(),
+                "persistSettings" to core.autonomy.persistRuntimeSettings.toString(),
+                "externalInputReason" to core.autonomy.externalInputReason.orEmpty(),
             ),
         )
 
