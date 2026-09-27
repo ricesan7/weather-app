@@ -964,28 +964,17 @@ class BuilderAppViewModel(
             while (isActive) {
                 val snapshot = _state.value
                 val bundle = snapshot.bundle
-
-                if (bundle == null) {
-                    _state.update {
-                        it.copy(
-                            base44BridgeOnline = false,
-                            base44BridgeStatus =
-                                "CircuitFlow連携済み。設計データの準備を待っています。",
-                        )
-                    }
-                    delay(BRIDGE_SYNC_INTERVAL_MS)
-                    continue
+                val contract = bundle?.let {
+                    VisualAppLayoutResolver.apply(
+                        graph = it.projectGraph,
+                        contract =
+                            it.softwarePlan.base44Handoff?.integration,
+                        positions = snapshot.graphNodePositions,
+                    )
                 }
-
-                val contract = VisualAppLayoutResolver.apply(
-                    graph = bundle.projectGraph,
-                    contract =
-                        bundle.softwarePlan.base44Handoff?.integration,
-                    positions = snapshot.graphNodePositions,
-                )
                 val connection = snapshot.connection
 
-                if (connection == null) {
+                if (connection == null || bundle == null) {
                     runCatching {
                         bridge.sync(
                             credentials = credentials,
@@ -995,13 +984,21 @@ class BuilderAppViewModel(
                             hardwareConnected = false,
                             acknowledgements = acknowledgements,
                         )
-                    }.onSuccess {
+                    }.onSuccess { sync ->
                         acknowledgements = emptyList()
+                        maybeApplyBase44Handoff(
+                            credentials = credentials,
+                            handoff = sync.designHandoff,
+                        )
                         _state.update {
                             it.copy(
                                 base44BridgeOnline = true,
                                 base44BridgeStatus =
-                                    "CircuitFlowと画面構成を同期中。実機は未接続です。",
+                                    if (bundle == null) {
+                                        "CircuitFlowと確定仕様を同期中です。"
+                                    } else {
+                                        "CircuitFlowと画面構成を同期中。実機は未接続です。"
+                                    },
                                 bridgeLastSyncAtEpochMs =
                                     System.currentTimeMillis(),
                             )
@@ -1034,20 +1031,34 @@ class BuilderAppViewModel(
                         acknowledgements = acknowledgements,
                     )
                 }.onSuccess { sync ->
-                    val runtime = RuntimeControlClient(connection.transport)
-                    val nextAcks = sync.commands.map { command ->
-                        executeBridgeCommand(
-                            runtime = runtime,
-                            command = command,
-                            contract = contract,
-                        )
+                    maybeApplyBase44Handoff(
+                        credentials = credentials,
+                        handoff = sync.designHandoff,
+                    )
+
+                    if (sync.designHandoff == null) {
+                        val runtime =
+                            RuntimeControlClient(connection.transport)
+                        acknowledgements = sync.commands.map { command ->
+                            executeBridgeCommand(
+                                runtime = runtime,
+                                command = command,
+                                contract = contract,
+                            )
+                        }
+                    } else {
+                        acknowledgements = emptyList()
                     }
-                    acknowledgements = nextAcks
+
                     _state.update {
                         it.copy(
                             base44BridgeOnline = true,
                             base44BridgeStatus =
-                                "CircuitFlowと実機データを同期中",
+                                if (sync.designHandoff == null) {
+                                    "CircuitFlowと実機データを同期中"
+                                } else {
+                                    "Base44の更新仕様を受信しました。再設計しています。"
+                                },
                             bridgeLastSyncAtEpochMs =
                                 System.currentTimeMillis(),
                         )
@@ -1069,6 +1080,83 @@ class BuilderAppViewModel(
         }
     }
 
+    private fun maybeApplyBase44Handoff(
+        credentials: Base44BridgeCredentials,
+        handoff: Base44DesignHandoff?,
+    ) {
+        handoff ?: return
+        val current = _state.value
+        if (
+            current.base44HandoffRevision == handoff.revision &&
+            current.base44HandoffStatus in
+                setOf("processing", "needs_input", "compiled")
+        ) {
+            return
+        }
+        if (current.busy) return
+
+        val localProjectId = current.projectId ?: return
+        bridgeCredentialStore?.save(localProjectId, credentials)
+
+        viewModelScope.launch {
+            _state.update {
+                it.copy(
+                    goalText = handoff.goalText,
+                    projectTitle = handoff.title,
+                    clarificationValues = emptyMap(),
+                    pendingQuestions = emptyList(),
+                    base44HandoffRevision = handoff.revision,
+                    base44HandoffStatus = "processing",
+                    base44HandoffMessage =
+                        "Base44の確定仕様 revision " +
+                            handoff.revision +
+                            " をProject Compilerで再検証しています。",
+                    error = null,
+                )
+            }
+            persistCurrent()
+            resolveAndCompile()
+        }
+    }
+
+    private fun acknowledgeActiveBase44Handoff(
+        status: String,
+        message: String,
+    ) {
+        val bridge = base44BridgeClient ?: return
+        val snapshot = _state.value
+        val revision = snapshot.base44HandoffRevision ?: return
+        val localProjectId = snapshot.projectId ?: return
+        val credentials =
+            bridgeCredentialStore?.load(localProjectId) ?: return
+        val bundle = snapshot.bundle
+        val contract = bundle?.let {
+            VisualAppLayoutResolver.apply(
+                graph = it.projectGraph,
+                contract =
+                    it.softwarePlan.base44Handoff?.integration,
+                positions = snapshot.graphNodePositions,
+            )
+        }
+
+        viewModelScope.launch(Dispatchers.IO) {
+            runCatching {
+                bridge.sync(
+                    credentials = credentials,
+                    telemetry = emptyMap(),
+                    settings = emptyMap(),
+                    contract = contract,
+                    hardwareConnected = false,
+                    handoffAck = Base44DesignHandoffAck(
+                        revision = revision,
+                        status = status,
+                        message = message,
+                        localProjectId = localProjectId,
+                    ),
+                )
+            }
+        }
+    }
 
     private fun executeBridgeCommand(
         runtime: RuntimeControlClient,
