@@ -494,6 +494,12 @@ void testBleRuntimeBridge() {
     assert(responseFrame.fields.at("offline_autonomy") == "true");
     assert(responseFrame.fields.at("persistent_manifest") == "true");
     assert(responseFrame.fields.at("persistent_settings") == "true");
+    assert(
+        responseFrame.fields.at(
+            "driver_profile_families"
+        ) ==
+        "DHT_PULSE_SENSOR,GPIO_DIGITAL_INPUT"
+    );
 
     aie::RuntimeFrame deploy;
     deploy.type = aie::MessageType::DEPLOY_MANIFEST;
