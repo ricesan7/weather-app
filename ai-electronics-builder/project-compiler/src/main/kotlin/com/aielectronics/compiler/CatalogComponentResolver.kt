@@ -162,6 +162,30 @@ class CatalogComponentResolver(
                             "verification_status",
                             spec.verificationStatus.name,
                         )
+                        val runtimeRequired =
+                            spec.kind in setOf(
+                                ComponentKind.SENSOR,
+                                ComponentKind.DISPLAY,
+                            )
+                        val runtimeReady =
+                            !runtimeRequired ||
+                                spec.driverId != null ||
+                                spec.runtimeDriverProfile
+                                    ?.runtimeReady == true
+                        put(
+                            "runtime_required",
+                            runtimeRequired.toString(),
+                        )
+                        put(
+                            "runtime_ready",
+                            runtimeReady.toString(),
+                        )
+                        if (runtimeRequired && !runtimeReady) {
+                            put(
+                                "runtime_blocker",
+                                "Runtime Driver未完了",
+                            )
+                        }
                     },
                 )
             }
@@ -175,7 +199,11 @@ class CatalogComponentResolver(
 
         return catalog.components()
             .asSequence()
-            .filter { it.designReady }
+            .filter {
+                it.designReady ||
+                    it.verificationStatus ==
+                        ComponentVerificationStatus.VERIFIED
+            }
             .map { spec ->
                 spec to buildSet {
                     add(normalize(spec.componentId))
