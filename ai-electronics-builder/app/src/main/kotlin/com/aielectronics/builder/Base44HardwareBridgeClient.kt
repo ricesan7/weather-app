@@ -88,6 +88,7 @@ class Base44HardwareBridgeClient(
         hardwareConnected: Boolean,
         acknowledgements: List<Base44BridgeAck> = emptyList(),
         handoffAck: Base44DesignHandoffAck? = null,
+        requestDesignRecovery: Boolean = false,
     ): Base44BridgeSyncResult {
         val json = post(
             JSONObject().apply {
@@ -95,6 +96,7 @@ class Base44HardwareBridgeClient(
                 put("device_id", credentials.deviceId)
                 put("device_token", credentials.deviceToken)
                 put("hardware_connected", hardwareConnected)
+                put("request_design_recovery", requestDesignRecovery)
                 put(
                     "telemetry",
                     JSONObject().apply {
