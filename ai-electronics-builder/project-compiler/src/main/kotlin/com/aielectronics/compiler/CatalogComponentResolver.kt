@@ -147,6 +147,8 @@ class CatalogComponentResolver(
                     componentId = spec.componentId,
                     role = spec.defaultRole,
                     properties = buildMap {
+                        put("display_name", spec.displayName)
+                        put("component_kind", spec.kind.name)
                         spec.driverId?.let {
                             put("driver_id", it)
                         }
