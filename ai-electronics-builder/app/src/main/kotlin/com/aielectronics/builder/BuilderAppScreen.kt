@@ -43,6 +43,7 @@ import com.aielectronics.assembly.GuidedBuildStateMachine
 import com.aielectronics.bench.BenchGateScreen
 import com.aielectronics.control.RuntimeControlDashboard
 import com.aielectronics.editor.AdvancedProjectEditor
+import com.aielectronics.core.model.ComponentVerificationStatus
 import com.aielectronics.core.model.DiagramSpec
 import com.aielectronics.core.model.NetType
 import com.aielectronics.core.model.ProjectGraph
@@ -200,6 +201,17 @@ private fun AppTitle(state: BuilderAppState) {
     }
 }
 
+private fun componentResearchStatusLabel(
+    status: ComponentVerificationStatus,
+): String = when (status) {
+    ComponentVerificationStatus.UNREGISTERED -> "未登録"
+    ComponentVerificationStatus.DISCOVERED -> "候補発見"
+    ComponentVerificationStatus.EXTRACTED -> "仕様抽出済み"
+    ComponentVerificationStatus.VERIFIED -> "公式資料確認済み・検証待ち"
+    ComponentVerificationStatus.DESIGN_READY -> "設計利用可能"
+    ComponentVerificationStatus.REJECTED -> "採用不可"
+}
+
 @Composable
 private fun ErrorCard(message: String, onDismiss: () -> Unit) {
     Surface(
@@ -287,6 +299,83 @@ private fun HomeScreen(
                 }
             }
         }
+        if (
+            state.componentResearchActive ||
+            state.componentResearchMessage.isNotBlank() ||
+            state.componentResearchRecords.isNotEmpty()
+        ) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "Component Research",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        if (state.componentResearchActive) {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (state.componentResearchMessage.isNotBlank()) {
+                            Text(
+                                state.componentResearchMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        state.componentResearchRecords.forEach { record ->
+                            Column(
+                                verticalArrangement =
+                                    Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text(
+                                    record.requestedName +
+                                        " — " +
+                                        componentResearchStatusLabel(
+                                            record.status
+                                        ),
+                                    style =
+                                        MaterialTheme.typography.bodyMedium,
+                                )
+                                val identity =
+                                    listOfNotNull(
+                                        record.manufacturer,
+                                        record.model,
+                                    ).joinToString(" ")
+                                if (identity.isNotBlank()) {
+                                    Text(
+                                        identity,
+                                        style =
+                                            MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                if (record.missingFields.isNotEmpty()) {
+                                    Text(
+                                        "未完了: " +
+                                            record.missingFields
+                                                .joinToString(),
+                                        style =
+                                            MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                if (record.sources.isNotEmpty()) {
+                                    Text(
+                                        "確認ソース " +
+                                            record.sources.size +
+                                            "件",
+                                        style =
+                                            MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
         item {
             Text(
                 "または、このアプリから直接作りたいものを入力できます。",
