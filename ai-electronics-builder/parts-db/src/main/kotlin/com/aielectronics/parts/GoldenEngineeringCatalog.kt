@@ -178,7 +178,7 @@ object GoldenEngineeringCatalog : EngineeringCatalog {
                         BoardPinCapability.DIGITAL_IO,
                         BoardPinCapability.PWM,
                     ),
-                    100,
+                    120,
                 ),
                 BoardPinSpec(
                     "pin_xiao_d4_gpio5",
