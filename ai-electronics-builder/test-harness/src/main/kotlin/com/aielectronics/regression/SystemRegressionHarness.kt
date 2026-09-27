@@ -256,7 +256,7 @@ class SystemRegressionHarness(
                         RegressionOutcome.Failed(
                             fixture = fixture,
                             stage = "component_research",
-                            message =
+                            reason =
                                 compile.requests.joinToString {
                                     it.requested.rawName
                                 },
