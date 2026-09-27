@@ -29,7 +29,15 @@ public:
         const std::string&,
         const std::string&
     ) {
-        return true;
+        return false;
+    }
+
+    virtual std::optional<std::string> loadManifest() {
+        return std::nullopt;
+    }
+
+    virtual bool storeManifest(const std::string&) {
+        return false;
     }
 };
 
@@ -45,6 +53,11 @@ public:
     );
 
     bool deploy(const Manifest& manifest, std::string& error);
+    bool persistManifest(
+        const std::string& encodedManifest,
+        std::string& error
+    );
+    bool restorePersistedManifest(std::string& error);
     bool verifyProject(const std::string& projectId) const;
 
     bool setSetting(
