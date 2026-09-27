@@ -55,5 +55,9 @@ data class BuilderAppState(
     val bridgeLastSyncAtEpochMs: Long? = null,
     val selectedGraphNodeId: String? = null,
     val graphNodePositions: Map<String, SavedGraphNodePosition> = emptyMap(),
+    val graphLayoutUndoStack:
+        List<Map<String, SavedGraphNodePosition>> = emptyList(),
+    val graphLayoutRedoStack:
+        List<Map<String, SavedGraphNodePosition>> = emptyList(),
     val revisionReturnScreen: AppScreen? = null,
 )
