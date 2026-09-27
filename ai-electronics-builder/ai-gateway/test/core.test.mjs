@@ -149,6 +149,7 @@ test("component research only keeps URLs returned by actual web search", async (
                     voltage_max_v: 5.5,
                     preferred_supply_v: 3.3,
                     current_max_ma: 2.5,
+                    i2c_address: "",
                     requires_external_power: false,
                     driver_id: "",
                     capabilities: [
