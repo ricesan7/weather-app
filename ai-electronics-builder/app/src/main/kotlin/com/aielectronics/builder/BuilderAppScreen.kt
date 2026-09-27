@@ -1473,12 +1473,25 @@ private fun RevisionScreen(
         }
 
         item {
+            val returnScreen =
+                state.revisionReturnScreen
+                    ?: if (state.bundle != null) {
+                        AppScreen.DESIGN
+                    } else {
+                        AppScreen.HOME
+                    }
             OutlinedButton(
-                onClick = { onOpen(AppScreen.DESIGN) },
+                onClick = { onOpen(returnScreen) },
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("設計へ戻る（会話は保持）")
+                Text(
+                    if (returnScreen == AppScreen.HOME) {
+                        "検証待ち部品へ戻る"
+                    } else {
+                        "設計へ戻る（会話は保持）"
+                    }
+                )
             }
         }
     }
