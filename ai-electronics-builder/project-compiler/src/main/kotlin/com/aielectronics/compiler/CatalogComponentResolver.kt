@@ -58,7 +58,11 @@ class CatalogComponentResolver(
         while (uncovered.isNotEmpty()) {
             val candidate = catalog.components()
                 .asSequence()
-                .filter { it.designReady }
+                .filter {
+                    it.designReady ||
+                        it.verificationStatus ==
+                            ComponentVerificationStatus.VERIFIED
+                }
                 .map {
                     spec ->
                     spec to
