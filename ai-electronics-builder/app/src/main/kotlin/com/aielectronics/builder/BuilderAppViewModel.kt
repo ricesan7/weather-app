@@ -939,6 +939,28 @@ class BuilderAppViewModel(
             return
         }
 
+        val requiredDriverFamilies =
+            manifest.driverProfiles
+                .map { it.family.name }
+                .toSet()
+        val unsupportedDriverFamilies =
+            requiredDriverFamilies -
+                connection.capabilities
+                    .driverProfileFamilies
+        if (unsupportedDriverFamilies.isNotEmpty()) {
+            _state.update {
+                it.copy(
+                    error =
+                        "接続中のUniversal Runtimeは、" +
+                            "この設計に必要なDriver Profileに未対応です: " +
+                            unsupportedDriverFamilies.joinToString() +
+                            "。対応Runtimeへ更新してから再接続してください。",
+                    deployMessage = "Runtime更新が必要です。",
+                )
+            }
+            return
+        }
+
         if (current.busy) return
 
         recordFriction { recordDeployAction() }
