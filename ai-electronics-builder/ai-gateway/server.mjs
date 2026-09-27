@@ -1,6 +1,9 @@
 import { createServer } from "node:http";
 import { timingSafeEqual } from "node:crypto";
-import { refineRevision } from "./core.mjs";
+import {
+  refineRevision,
+  researchComponent
+} from "./core.mjs";
 
 const PORT = Number(process.env.PORT || 8787);
 const REQUIRED_TOKEN = process.env.AI_GATEWAY_TOKEN || "";
@@ -43,7 +46,14 @@ const server = createServer(async (req, res) => {
     return sendJson(res, 200, { ok: true });
   }
 
-  if (req.method !== "POST" || req.url !== "/v1/revision-chat") {
+  const isRevision =
+    req.method === "POST" &&
+    req.url === "/v1/revision-chat";
+  const isComponentResearch =
+    req.method === "POST" &&
+    req.url === "/v1/component-research";
+
+  if (!isRevision && !isComponentResearch) {
     return sendJson(res, 404, { error: "not_found" });
   }
 
@@ -53,6 +63,23 @@ const server = createServer(async (req, res) => {
 
   try {
     const body = await readJson(req);
+
+    if (isComponentResearch) {
+      if (
+        typeof body.requested_name !== "string" ||
+        !body.requested_name.trim() ||
+        typeof body.project_goal !== "string"
+      ) {
+        return sendJson(
+          res,
+          400,
+          { error: "invalid_component_research_request" }
+        );
+      }
+      const result = await researchComponent(body);
+      return sendJson(res, 200, result);
+    }
+
     if (
       typeof body.current_goal !== "string" ||
       typeof body.user_message !== "string" ||
