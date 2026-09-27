@@ -10,6 +10,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
@@ -67,6 +68,23 @@ private fun BuilderAppHost() {
         )
     )
     val state by viewModel.state.collectAsState()
+
+    LaunchedEffect(state.projectId) {
+        val projectId = state.projectId
+        if (
+            projectId != null &&
+            bridgeCredentialStore.load(projectId) != null
+        ) {
+            Base44BridgeKeepAliveService.start(
+                context.applicationContext,
+                projectId,
+            )
+        } else if (projectId == null) {
+            Base44BridgeKeepAliveService.stop(
+                context.applicationContext,
+            )
+        }
+    }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestMultiplePermissions(),
