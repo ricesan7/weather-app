@@ -74,8 +74,8 @@ public:
     bool runTest(const std::string& testId);
     std::unordered_map<std::string, Value> telemetry() const;
 
-    const std::vector<RuntimeEvent>& events() const { return events_; }
-    void clearEvents() { events_.clear(); }
+    std::vector<RuntimeEvent> events() const;
+    void clearEvents();
 
 private:
     bool validateSetting(
