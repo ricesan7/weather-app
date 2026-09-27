@@ -91,6 +91,18 @@ Manifest ManifestParser::parse(const std::string& text) const {
             else if (fields[1] == "project") manifest.projectId = fields[2];
             else if (fields[1] == "board") manifest.boardId = fields[2];
             else if (fields[1] == "runtime_min") manifest.minimumRuntimeVersion = fields[2];
+        } else if (kind == "autonomy") {
+            if (fields.size() < 6) {
+                throw std::runtime_error("Invalid autonomy line");
+            }
+            manifest.autonomy.coreOperationMode = fields[1];
+            manifest.autonomy.localBehaviorExecutionRequired =
+                boolValue(fields[2]);
+            manifest.autonomy.localSafetyExecutionRequired =
+                boolValue(fields[3]);
+            manifest.autonomy.persistRuntimeSettings =
+                boolValue(fields[4]);
+            manifest.autonomy.externalInputReason = fields[5];
         } else if (kind == "driver") {
             if (fields.size() < 2) throw std::runtime_error("Invalid driver line");
             manifest.drivers.push_back(fields[1]);
