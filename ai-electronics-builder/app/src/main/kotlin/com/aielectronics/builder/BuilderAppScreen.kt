@@ -124,7 +124,12 @@ fun BuilderAppScreen(
                 onDeleteProject = onDeleteProject,
                 onNewProject = onNewProject,
             )
-            AppScreen.DESIGN -> DesignScreen(state, onOpen)
+            AppScreen.DESIGN -> DesignScreen(
+                state = state,
+                onOpen = onOpen,
+                onRetryComponentResearch =
+                    onRetryComponentResearch,
+            )
             AppScreen.GRAPH -> ProjectGraphScreen(
                 state = state,
                 onOpen = onOpen,
@@ -424,7 +429,6 @@ private fun HomeScreen(
                                     )
                                 }
                                 if (
-                                    state.bundle != null &&
                                     record.status !=
                                         ComponentVerificationStatus.DESIGN_READY &&
                                     !state.componentResearchActive
@@ -606,8 +610,17 @@ private fun HomeScreen(
 private fun DesignScreen(
     state: BuilderAppState,
     onOpen: (AppScreen) -> Unit,
+    onRetryComponentResearch: () -> Unit,
 ) {
     val bundle = state.bundle ?: return
+    val runtimePending =
+        bundle.designIr.components.filter {
+            instance ->
+            instance.properties["runtime_required"] ==
+                "true" &&
+                instance.properties["runtime_ready"] !=
+                "true"
+        }
     val catalog = GoldenEngineeringCatalog
     val board = catalog.board(bundle.designIr.board.boardId)
 
@@ -623,6 +636,54 @@ private fun DesignScreen(
         }
         item {
             InfoCard("安全確認", bundle.validation.state.name)
+        }
+        if (runtimePending.isNotEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement =
+                            Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "設計は続行できます",
+                            style =
+                                MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            "電気設計・部品・配線・組立は確認できます。" +
+                                "次の部品はRuntime Driver検証待ちのため、" +
+                                "実機への設定だけ保留されています。",
+                            style =
+                                MaterialTheme.typography.bodySmall,
+                        )
+                        runtimePending.forEach { instance ->
+                            Text(
+                                "・" +
+                                    (
+                                        instance.properties[
+                                            "display_name"
+                                        ]
+                                            ?: instance.componentId
+                                    ),
+                                style =
+                                    MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Button(
+                            onClick =
+                                onRetryComponentResearch,
+                            enabled =
+                                !state.busy &&
+                                    !state.componentResearchActive,
+                            modifier =
+                                Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Runtime Driverを再検証")
+                        }
+                    }
+                }
+            }
         }
         state.base44HandoffRevision?.let { revision ->
             item {
