@@ -71,6 +71,8 @@ fun BuilderAppScreen(
     onGraphNodeSelect: (String?) -> Unit,
     onGraphNodeMove: (String, SavedGraphNodePosition) -> Unit,
     onGraphNodeMoveFinished: () -> Unit,
+    onGraphLayoutUndo: () -> Unit,
+    onGraphLayoutRedo: () -> Unit,
     onGraphAddElement: (String) -> Unit,
     onGraphChangeNode: (String, String) -> Unit,
     onGraphDeleteNode: (String) -> Unit,
@@ -119,6 +121,8 @@ fun BuilderAppScreen(
                 onNodeSelect = onGraphNodeSelect,
                 onNodeMove = onGraphNodeMove,
                 onNodeMoveFinished = onGraphNodeMoveFinished,
+                onLayoutUndo = onGraphLayoutUndo,
+                onLayoutRedo = onGraphLayoutRedo,
                 onAddElement = onGraphAddElement,
                 onChangeNode = onGraphChangeNode,
                 onDeleteNode = onGraphDeleteNode,
@@ -446,6 +450,8 @@ private fun ProjectGraphScreen(
     onNodeSelect: (String?) -> Unit,
     onNodeMove: (String, SavedGraphNodePosition) -> Unit,
     onNodeMoveFinished: () -> Unit,
+    onLayoutUndo: () -> Unit,
+    onLayoutRedo: () -> Unit,
     onAddElement: (String) -> Unit,
     onChangeNode: (String, String) -> Unit,
     onDeleteNode: (String) -> Unit,
@@ -490,6 +496,31 @@ private fun ProjectGraphScreen(
                 onNodeMove = onNodeMove,
                 onNodeMoveFinished = onNodeMoveFinished,
             )
+        }
+        item {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                OutlinedButton(
+                    onClick = onLayoutUndo,
+                    enabled =
+                        state.graphLayoutUndoStack.isNotEmpty() &&
+                            !state.busy,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("元に戻す")
+                }
+                OutlinedButton(
+                    onClick = onLayoutRedo,
+                    enabled =
+                        state.graphLayoutRedoStack.isNotEmpty() &&
+                            !state.busy,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("やり直す")
+                }
+            }
         }
 
         selectedNode?.let { node ->
