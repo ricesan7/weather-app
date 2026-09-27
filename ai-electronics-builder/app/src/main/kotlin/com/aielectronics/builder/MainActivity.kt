@@ -107,6 +107,8 @@ private fun BuilderAppHost() {
         onGraphNodeSelect = viewModel::selectGraphNode,
         onGraphNodeMove = viewModel::moveGraphNode,
         onGraphNodeMoveFinished = viewModel::finishGraphNodeMove,
+        onGraphLayoutUndo = viewModel::undoGraphLayout,
+        onGraphLayoutRedo = viewModel::redoGraphLayout,
         onGraphAddElement = viewModel::addGraphElement,
         onGraphChangeNode = viewModel::changeGraphNode,
         onGraphDeleteNode = viewModel::deleteGraphNode,
