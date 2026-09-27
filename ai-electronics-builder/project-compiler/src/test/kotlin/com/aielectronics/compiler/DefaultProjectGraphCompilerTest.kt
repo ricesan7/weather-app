@@ -124,6 +124,15 @@ class DefaultProjectGraphCompilerTest {
             }
         )
         assertTrue(graph.nodes.any { it.domain == ProjectGraphDomain.RUNTIME })
+        val runtimeNode = graph.nodes.first {
+            it.kind == ProjectGraphNodeKind.RUNTIME
+        }
+        assertTrue(
+            runtimeNode.metadata["coreOperationMode"] ==
+                CoreOperationMode.AUTONOMOUS_MCU.name
+        )
+        assertTrue(runtimeNode.metadata["localSafety"] == "true")
+        assertTrue(runtimeNode.metadata["persistSettings"] == "true")
         assertTrue(
             graph.edges.any {
                 it.kind == ProjectGraphEdgeKind.TELEMETRY_TO_APP &&
