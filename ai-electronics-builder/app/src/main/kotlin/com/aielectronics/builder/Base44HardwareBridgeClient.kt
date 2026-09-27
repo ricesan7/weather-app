@@ -29,8 +29,24 @@ data class Base44BridgeAck(
     val error: String? = null,
 )
 
+data class Base44DesignHandoff(
+    val revision: Int,
+    val title: String,
+    val goalText: String,
+    val specMarkdown: String,
+    val specChecksum: String,
+)
+
+data class Base44DesignHandoffAck(
+    val revision: Int,
+    val status: String,
+    val message: String,
+    val localProjectId: String,
+)
+
 data class Base44BridgeSyncResult(
     val commands: List<Base44BridgeCommand>,
+    val designHandoff: Base44DesignHandoff? = null,
 )
 
 class Base44HardwareBridgeClient(
@@ -70,6 +86,7 @@ class Base44HardwareBridgeClient(
         contract: AppHardwareIntegrationContract?,
         hardwareConnected: Boolean,
         acknowledgements: List<Base44BridgeAck> = emptyList(),
+        handoffAck: Base44DesignHandoffAck? = null,
     ): Base44BridgeSyncResult {
         val json = post(
             JSONObject().apply {
@@ -106,6 +123,17 @@ class Base44HardwareBridgeClient(
                 contract?.let {
                     put("contract", encodeContract(it))
                 }
+                handoffAck?.let { ack ->
+                    put(
+                        "handoff_ack",
+                        JSONObject().apply {
+                            put("revision", ack.revision)
+                            put("status", ack.status)
+                            put("message", ack.message)
+                            put("local_project_id", ack.localProjectId)
+                        },
+                    )
+                }
             }
         )
 
@@ -126,7 +154,19 @@ class Base44HardwareBridgeClient(
                 )
             }
         }
-        return Base44BridgeSyncResult(commands)
+        val handoff = json.optJSONObject("design_handoff")?.let { item ->
+            Base44DesignHandoff(
+                revision = item.getInt("revision"),
+                title = item.optString("title", "Base44プロジェクト"),
+                goalText = item.getString("goal_text"),
+                specMarkdown = item.getString("spec_markdown"),
+                specChecksum = item.optString("spec_checksum", ""),
+            )
+        }
+        return Base44BridgeSyncResult(
+            commands = commands,
+            designHandoff = handoff,
+        )
     }
 
     fun health(): Boolean =
