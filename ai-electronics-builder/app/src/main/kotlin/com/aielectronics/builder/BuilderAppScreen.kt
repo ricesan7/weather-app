@@ -63,6 +63,7 @@ fun BuilderAppScreen(
     onDeploy: () -> Unit,
     onBridgePairingCodeChange: (String) -> Unit,
     onPairBase44: () -> Unit,
+    onReceiveBase44Design: () -> Unit,
     onBuildProgress: (Set<String>, Int) -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
@@ -110,6 +111,8 @@ fun BuilderAppScreen(
                 onGoalChange = onGoalChange,
                 onStartDesign = onStartDesign,
                 onAnswerQuestion = onAnswerQuestion,
+                onBridgePairingCodeChange = onBridgePairingCodeChange,
+                onReceiveBase44Design = onReceiveBase44Design,
                 onResumeProject = onResumeProject,
                 onDeleteProject = onDeleteProject,
                 onNewProject = onNewProject,
@@ -224,6 +227,8 @@ private fun HomeScreen(
     onGoalChange: (String) -> Unit,
     onStartDesign: () -> Unit,
     onAnswerQuestion: (String, String) -> Unit,
+    onBridgePairingCodeChange: (String) -> Unit,
+    onReceiveBase44Design: () -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onNewProject: () -> Unit,
@@ -234,8 +239,57 @@ private fun HomeScreen(
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        "Base44から設計を受け取る",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        "CircuitFlowで「仕様を確定して実機設計へ送る」を押した時に表示される接続コードを入力します。",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = state.bridgePairingCode,
+                        onValueChange = onBridgePairingCodeChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("接続コード") },
+                        singleLine = true,
+                        enabled = !state.busy,
+                    )
+                    Button(
+                        onClick = onReceiveBase44Design,
+                        enabled =
+                            state.bridgePairingCode.isNotBlank() &&
+                                !state.busy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            if (
+                                state.busy &&
+                                state.base44HandoffStatus == "receiving"
+                            ) {
+                                "確定仕様を受信中…"
+                            } else {
+                                "Base44の確定仕様から自動設計"
+                            }
+                        )
+                    }
+                    if (state.base44HandoffMessage.isNotBlank()) {
+                        Text(
+                            state.base44HandoffMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+        item {
             Text(
-                "例：温度が30℃以上になったらファンを回したい。履歴もスマホで見たい。",
+                "または、このアプリから直接作りたいものを入力できます。",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
