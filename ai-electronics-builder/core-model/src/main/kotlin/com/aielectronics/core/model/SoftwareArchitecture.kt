@@ -45,6 +45,8 @@ data class DeviceBridgeTelemetry(
     val id: String,
     val binding: String,
     val valueType: BridgeValueType,
+    val displayName: String? = null,
+    val presentation: AppBridgePresentation = AppBridgePresentation.VALUE,
     val unit: String? = null,
 )
 
@@ -57,6 +59,17 @@ enum class AppBridgeDirection {
     HARDWARE_TO_BASE44,
     BASE44_TO_HARDWARE,
     HARDWARE_EVENT_TO_BASE44,
+}
+
+enum class AppBridgePresentation {
+    VALUE,
+    GAUGE,
+    STATUS,
+    TOGGLE,
+    SLIDER,
+    SELECT,
+    BUTTON,
+    EVENT,
 }
 
 data class AppBridgeChannel(
