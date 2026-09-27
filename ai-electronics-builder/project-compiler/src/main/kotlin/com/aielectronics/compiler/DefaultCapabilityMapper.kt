@@ -23,6 +23,38 @@ class DefaultCapabilityMapper : CapabilityMapper {
         if (goal.containsAny("ファン", "換気", "fan", "ventilation")) {
             capabilities += CapabilityId("actuate_fan")
         }
+        if (
+            goal.containsAny(
+                "oled",
+                "lcd",
+                "液晶",
+                "有機el",
+                "7セグ",
+                "seven segment",
+            )
+        ) {
+            capabilities += CapabilityId("display_visual")
+        }
+        if (
+            goal.containsAny(
+                "タクトスイッチ",
+                "押しボタン",
+                "物理ボタン",
+                "push button",
+                "tact switch",
+            )
+        ) {
+            capabilities += CapabilityId("sense_button")
+        }
+        if (
+            goal.containsAny(
+                "電源自動切替",
+                "電源切替モジュール",
+                "automatic power switching",
+            )
+        ) {
+            capabilities += CapabilityId("manage_power_input")
+        }
 
         if (
             requirements.slots["automation_required"]?.value.asBoolean() ||
