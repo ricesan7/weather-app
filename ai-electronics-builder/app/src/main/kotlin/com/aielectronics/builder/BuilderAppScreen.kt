@@ -39,6 +39,8 @@ import com.aielectronics.control.RuntimeControlDashboard
 import com.aielectronics.editor.AdvancedProjectEditor
 import com.aielectronics.core.model.DiagramSpec
 import com.aielectronics.core.model.NetType
+import com.aielectronics.core.model.ProjectGraph
+import com.aielectronics.core.model.ProjectGraphDomain
 import com.aielectronics.parts.GoldenEngineeringCatalog
 
 @Composable
@@ -96,6 +98,7 @@ fun BuilderAppScreen(
                 onNewProject = onNewProject,
             )
             AppScreen.DESIGN -> DesignScreen(state, onOpen)
+            AppScreen.GRAPH -> ProjectGraphScreen(state, onOpen)
             AppScreen.PARTS -> PartsScreen(state, onOpen)
             AppScreen.WIRING -> WiringScreen(state, onOpen)
             AppScreen.BUILD -> BuildScreen(
@@ -149,6 +152,7 @@ private fun AppTitle(state: BuilderAppState) {
             text = when (state.screen) {
                 AppScreen.HOME -> "作りたいものを話す"
                 AppScreen.DESIGN -> "設計"
+                AppScreen.GRAPH -> "Visual Project"
                 AppScreen.PARTS -> "部品"
                 AppScreen.WIRING -> "配線"
                 AppScreen.BUILD -> "組立"
@@ -376,6 +380,14 @@ private fun DesignScreen(
         }
         item {
             Button(
+                onClick = { onOpen(AppScreen.GRAPH) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Visual Projectを見る")
+            }
+        }
+        item {
+            OutlinedButton(
                 onClick = { onOpen(AppScreen.PARTS) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -400,6 +412,170 @@ private fun DesignScreen(
         }
     }
 }
+
+@Composable
+private fun ProjectGraphScreen(
+    state: BuilderAppState,
+    onOpen: (AppScreen) -> Unit,
+) {
+    val bundle = state.bundle ?: return
+    val graph = bundle.projectGraph
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            InfoCard(
+                "Visual Project",
+                "ノード " + graph.nodes.size + "個 / 接続 " + graph.edges.size + "本",
+            )
+        }
+        item {
+            Text(
+                "ハードウェア、動作、Base44アプリ、実機Runtimeを同じ設計グラフで表示しています。",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        item {
+            ProjectGraphCanvas(graph)
+        }
+        item {
+            Text(
+                "現在は全体構造の表示段階です。次の実装でノードの選択・移動・追加・削除・AI編集をこの画面へ統合します。",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        item {
+            Button(
+                onClick = { onOpen(AppScreen.PARTS) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("部品と配線へ進む")
+            }
+        }
+        item {
+            OutlinedButton(
+                onClick = { onOpen(AppScreen.DESIGN) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("設計へ戻る")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectGraphCanvas(graph: ProjectGraph) {
+    val lanes = graph.lanes.sortedBy { it.order }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.78f)
+                .padding(8.dp),
+        ) {
+            Canvas(modifier = Modifier.fillMaxSize()) {
+                if (lanes.isEmpty()) return@Canvas
+
+                val laneWidth = size.width / lanes.size
+                val topPadding = 52f
+                val bottomPadding = 20f
+                val nodeWidth = laneWidth * 0.78f
+                val nodeHeight = 42f
+                val nodesByDomain = lanes.associate { lane ->
+                    lane.domain to graph.nodes.filter { it.domain == lane.domain }
+                }
+                val maxNodes = nodesByDomain.values.maxOfOrNull { it.size } ?: 1
+                val usableHeight =
+                    (size.height - topPadding - bottomPadding).coerceAtLeast(nodeHeight)
+                val rowSpacing = usableHeight / (maxNodes + 1)
+                val positions = mutableMapOf<String, Offset>()
+
+                val titlePaint = android.graphics.Paint().apply {
+                    isAntiAlias = true
+                    textSize = 22f
+                    color = android.graphics.Color.DKGRAY
+                    textAlign = android.graphics.Paint.Align.CENTER
+                }
+                val nodePaint = android.graphics.Paint().apply {
+                    isAntiAlias = true
+                    textSize = 18f
+                    color = android.graphics.Color.DKGRAY
+                    textAlign = android.graphics.Paint.Align.CENTER
+                }
+
+                lanes.forEachIndexed { laneIndex, lane ->
+                    val centerX = laneWidth * laneIndex + laneWidth / 2f
+
+                    if (laneIndex > 0) {
+                        drawLine(
+                            color = Color(0xFFE0E0E0),
+                            start = Offset(laneWidth * laneIndex, 0f),
+                            end = Offset(laneWidth * laneIndex, size.height),
+                            strokeWidth = 1.5f,
+                        )
+                    }
+
+                    drawContext.canvas.nativeCanvas.drawText(
+                        lane.title,
+                        centerX,
+                        28f,
+                        titlePaint,
+                    )
+
+                    nodesByDomain[lane.domain].orEmpty()
+                        .forEachIndexed { index, node ->
+                            val centerY = topPadding + rowSpacing * (index + 1)
+                            positions[node.id] = Offset(centerX, centerY)
+                        }
+                }
+
+                graph.edges.forEach { edge ->
+                    val start = positions[edge.fromNodeId]
+                    val end = positions[edge.toNodeId]
+                    if (start != null && end != null) {
+                        drawLine(
+                            color = Color(0xFF9E9E9E),
+                            start = start,
+                            end = end,
+                            strokeWidth = 2.5f,
+                        )
+                    }
+                }
+
+                lanes.forEach { lane ->
+                    nodesByDomain[lane.domain].orEmpty().forEach { node ->
+                        val center = positions[node.id] ?: return@forEach
+                        val topLeft = Offset(
+                            center.x - nodeWidth / 2f,
+                            center.y - nodeHeight / 2f,
+                        )
+
+                        drawRect(
+                            color = projectGraphNodeColor(node.domain),
+                            topLeft = topLeft,
+                            size = Size(nodeWidth, nodeHeight),
+                        )
+
+                        drawContext.canvas.nativeCanvas.drawText(
+                            node.label.take(14),
+                            center.x,
+                            center.y + 6f,
+                            nodePaint,
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+private fun projectGraphNodeColor(domain: ProjectGraphDomain): Color = when (domain) {
+    ProjectGraphDomain.HARDWARE -> Color(0xFFE3F2FD)
+    ProjectGraphDomain.BEHAVIOR -> Color(0xFFFFF3E0)
+    ProjectGraphDomain.APPLICATION -> Color(0xFFE8F5E9)
+    ProjectGraphDomain.RUNTIME -> Color(0xFFF3E5F5)
+}
+
 
 @Composable
 private fun RevisionScreen(
