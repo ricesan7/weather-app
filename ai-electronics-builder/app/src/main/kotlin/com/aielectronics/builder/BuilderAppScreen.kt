@@ -1264,7 +1264,16 @@ private fun PartsScreen(
 
         bundle.designIr.components.forEach { instance ->
             val spec = catalog.component(instance.componentId)
-            add("1 × " + (spec?.displayName ?: instance.componentId) + " — " + instance.role)
+            val displayName =
+                instance.properties["display_name"]
+                    ?: spec?.displayName
+                    ?: instance.componentId
+            add(
+                "1 × " +
+                    displayName +
+                    " — " +
+                    instance.role
+            )
         }
 
         bundle.designIr.power.sources
