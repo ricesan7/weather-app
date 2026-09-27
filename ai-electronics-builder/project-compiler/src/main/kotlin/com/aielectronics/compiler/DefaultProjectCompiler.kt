@@ -18,6 +18,8 @@ class DefaultProjectCompiler(
     private val diagnosticCompiler: DiagnosticCompiler,
     private val softwareArchitectureCompiler: SoftwareArchitectureCompiler =
         DefaultSoftwareArchitectureCompiler(),
+    private val projectGraphCompiler: ProjectGraphCompiler =
+        DefaultProjectGraphCompiler(),
 ) : ProjectCompiler {
 
     override fun compile(requirements: ResolvedRequirements): CompileResult {
@@ -76,6 +78,12 @@ class DefaultProjectCompiler(
             ui = ui,
         ).getOrElse { return failed("software_architecture_compile", it) }
 
+        val projectGraph = projectGraphCompiler.compile(
+            core = core,
+            ui = ui,
+            softwarePlan = softwarePlan,
+        ).getOrElse { return failed("project_graph_compile", it) }
+
         val diagnostics = diagnosticCompiler.compile(core)
             .getOrElse { return failed("diagnostic_compile", it) }
 
@@ -95,6 +103,7 @@ class DefaultProjectCompiler(
                 uiSpec = ui,
                 testPlan = diagnostics.testPlan,
                 softwarePlan = softwarePlan,
+                projectGraph = projectGraph,
             )
         )
     }
