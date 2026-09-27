@@ -57,7 +57,7 @@ class DefaultDesignCoreAssembler : DesignCoreAssembler {
             ),
             deployment = DeploymentSpec(
                 firmwareProfileId = "fw_beginner_runtime",
-                manifestVersion = "1.0",
+                manifestVersion = "1.1",
             ),
             safety = SafetySummary(
                 state = validation.state,
