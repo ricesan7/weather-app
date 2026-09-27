@@ -44,8 +44,35 @@ RuntimeCore::RuntimeCore(
 bool RuntimeCore::deploy(const Manifest& manifest, std::string& error) {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     for (const auto& driver : manifest.drivers) {
-        if (supportedDrivers_.count(driver) == 0) {
+        if (supportedDrivers_.count(driver) != 0) {
+            continue;
+        }
+
+        const auto profile = std::find_if(
+            manifest.driverProfiles.begin(),
+            manifest.driverProfiles.end(),
+            [&](const DriverProfileSpec& candidate) {
+                return candidate.driverId == driver;
+            }
+        );
+
+        if (
+            profile == manifest.driverProfiles.end() ||
+            !hardware_.supportsDriverProfile(*profile)
+        ) {
             error = "Unsupported driver: " + driver;
+            return false;
+        }
+    }
+
+    for (const auto& profile : manifest.driverProfiles) {
+        if (
+            profile.driverId.empty() ||
+            profile.family.empty() ||
+            profile.interfaceType.empty() ||
+            profile.sampleIntervalMs <= 0
+        ) {
+            error = "Invalid driver profile: " + profile.driverId;
             return false;
         }
     }
@@ -62,6 +89,7 @@ bool RuntimeCore::deploy(const Manifest& manifest, std::string& error) {
     settings_.clear();
     inputs_.clear();
     outputs_.clear();
+    lastDeviceSampleAtMs_.clear();
     events_.clear();
 
     for (const auto& setting : manifest.settings) {
@@ -207,6 +235,8 @@ void RuntimeCore::updateInput(const std::string& id, const Value& value) {
 void RuntimeCore::tick() {
     std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!manifest_) return;
+
+    sampleProfileDevices();
 
     const auto ctx = context();
 
@@ -389,6 +419,61 @@ void RuntimeCore::executeActions(const std::vector<std::string>& actions) {
     }
 }
 
+void RuntimeCore::sampleProfileDevices() {
+    if (!manifest_) return;
+
+    const std::uint64_t now = hardware_.monotonicMillis();
+
+    for (const auto& device : manifest_->devices) {
+        const auto* profile = driverProfile(device.driverId);
+        if (!profile) continue;
+
+        const auto last =
+            lastDeviceSampleAtMs_.find(device.instanceId);
+        if (
+            now > 0 &&
+            last != lastDeviceSampleAtMs_.end() &&
+            now >= last->second &&
+            now - last->second <
+                static_cast<std::uint64_t>(
+                    profile->sampleIntervalMs
+                )
+        ) {
+            continue;
+        }
+
+        const auto sampled =
+            hardware_.sampleDevice(device, *profile);
+
+        lastDeviceSampleAtMs_[device.instanceId] = now;
+
+        if (!sampled) {
+            recordEvent(
+                "driver_sample_failed:" +
+                    device.instanceId
+            );
+            continue;
+        }
+
+        for (const auto& telemetry : profile->telemetry) {
+            const auto source =
+                sampled->find(telemetry.source);
+            if (source == sampled->end()) continue;
+
+            const auto numeric = source->second.asNumber();
+            if (numeric) {
+                inputs_[telemetry.id] =
+                    Value(
+                        *numeric * telemetry.scale +
+                            telemetry.offset
+                    );
+            } else {
+                inputs_[telemetry.id] = source->second;
+            }
+        }
+    }
+}
+
 void RuntimeCore::recordEvent(const std::string& id) {
     constexpr std::size_t MAX_EVENTS = 100;
 
@@ -426,6 +511,22 @@ std::unordered_map<std::string, Value> RuntimeCore::context() const {
     }
 
     return ctx;
+}
+
+const DriverProfileSpec* RuntimeCore::driverProfile(
+    const std::string& driverId
+) const {
+    if (!manifest_) return nullptr;
+    const auto it = std::find_if(
+        manifest_->driverProfiles.begin(),
+        manifest_->driverProfiles.end(),
+        [&](const DriverProfileSpec& profile) {
+            return profile.driverId == driverId;
+        }
+    );
+    return it == manifest_->driverProfiles.end()
+        ? nullptr
+        : &(*it);
 }
 
 const SettingSpec* RuntimeCore::settingSpec(const std::string& id) const {
