@@ -1508,6 +1508,13 @@ class BuilderAppViewModel(
                         }
                     }
 
+                    is ResolutionResult.Research -> {
+                        runComponentResearch(
+                            requests = result.requests,
+                            retry = ::resolveAndCompile,
+                        )
+                    }
+
                     is ResolutionResult.Success -> {
                         val previous = _state.value
                         val activeHandoff =
@@ -1751,6 +1758,11 @@ class BuilderAppViewModel(
 
                     is CompileResult.NeedUserInput ->
                         ResolutionResult.Questions(compile.questions)
+
+                    is CompileResult.NeedsComponentResearch ->
+                        ResolutionResult.Research(
+                            compile.requests
+                        )
 
                     is CompileResult.Blocked ->
                         ResolutionResult.Error(
