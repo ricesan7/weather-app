@@ -229,6 +229,69 @@ class SqliteComponentResearchStore(
             )
             put("tags", stringArray(spec.tags))
             put("driverId", spec.driverId)
+            spec.runtimeDriverProfile?.let { profile ->
+                put(
+                    "runtimeDriverProfile",
+                    JSONObject().apply {
+                        put("driverId", profile.driverId)
+                        put("family", profile.family.name)
+                        put(
+                            "interfaceType",
+                            profile.interfaceType.name,
+                        )
+                        put(
+                            "sampleIntervalMs",
+                            profile.sampleIntervalMs,
+                        )
+                        put(
+                            "parameters",
+                            JSONObject().apply {
+                                profile.parameters.forEach {
+                                    (key, value) ->
+                                    put(key, value)
+                                }
+                            },
+                        )
+                        put(
+                            "telemetry",
+                            JSONArray().apply {
+                                profile.telemetry.forEach {
+                                    telemetry ->
+                                    put(
+                                        JSONObject().apply {
+                                            put(
+                                                "id",
+                                                telemetry.id,
+                                            )
+                                            put(
+                                                "unit",
+                                                telemetry.unit,
+                                            )
+                                            put(
+                                                "source",
+                                                telemetry.source,
+                                            )
+                                            put(
+                                                "scale",
+                                                telemetry.scale,
+                                            )
+                                            put(
+                                                "offset",
+                                                telemetry.offset,
+                                            )
+                                        }
+                                    )
+                                }
+                            },
+                        )
+                        put(
+                            "sourceIds",
+                            stringArray(profile.sourceIds),
+                        )
+                        put("status", profile.status.name)
+                    },
+                )
+            }
             put("designReady", spec.designReady)
             put(
                 "engineeringPriority",
@@ -347,6 +410,86 @@ class SqliteComponentResearchStore(
             driverId =
                 json.optString("driverId")
                     .takeIf { it.isNotBlank() },
+            runtimeDriverProfile =
+                json.optJSONObject("runtimeDriverProfile")
+                    ?.let { profile ->
+                        RuntimeDriverProfile(
+                            driverId =
+                                profile.getString("driverId"),
+                            family =
+                                RuntimeDriverFamily.valueOf(
+                                    profile.getString("family")
+                                ),
+                            interfaceType =
+                                ElectricalInterface.valueOf(
+                                    profile.getString(
+                                        "interfaceType"
+                                    )
+                                ),
+                            sampleIntervalMs =
+                                profile.optInt(
+                                    "sampleIntervalMs",
+                                    1000,
+                                ),
+                            parameters =
+                                profile.optJSONObject("parameters")
+                                    ?.let { params ->
+                                        buildMap {
+                                            val keys =
+                                                params.keys()
+                                            while (keys.hasNext()) {
+                                                val key = keys.next()
+                                                put(
+                                                    key,
+                                                    params.getString(
+                                                        key
+                                                    ),
+                                                )
+                                            }
+                                        }
+                                    }
+                                    .orEmpty(),
+                            telemetry =
+                                profile.optJSONArray("telemetry")
+                                    ?.objects()
+                                    ?.map { telemetry ->
+                                        RuntimeDriverTelemetrySpec(
+                                            id =
+                                                telemetry.getString(
+                                                    "id"
+                                                ),
+                                            unit =
+                                                telemetry.optString(
+                                                    "unit"
+                                                ),
+                                            source =
+                                                telemetry.getString(
+                                                    "source"
+                                                ),
+                                            scale =
+                                                telemetry.optDouble(
+                                                    "scale",
+                                                    1.0,
+                                                ),
+                                            offset =
+                                                telemetry.optDouble(
+                                                    "offset",
+                                                    0.0,
+                                                ),
+                                        )
+                                    }
+                                    .orEmpty(),
+                            sourceIds =
+                                profile.optJSONArray("sourceIds")
+                                    ?.strings()
+                                    ?.toSet()
+                                    .orEmpty(),
+                            status =
+                                RuntimeDriverProfileStatus.valueOf(
+                                    profile.getString("status")
+                                ),
+                        )
+                    },
             designReady =
                 json.optBoolean("designReady", false),
             engineeringPriority =
