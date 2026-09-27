@@ -49,6 +49,14 @@ struct TestSpec {
     bool required = false;
 };
 
+struct AutonomySpec {
+    std::string coreOperationMode = "AUTONOMOUS_MCU";
+    bool localBehaviorExecutionRequired = true;
+    bool localSafetyExecutionRequired = true;
+    bool persistRuntimeSettings = true;
+    std::string externalInputReason;
+};
+
 struct DeviceSpec {
     std::string instanceId;
     std::string driverId;
@@ -60,6 +68,7 @@ struct Manifest {
     std::string projectId;
     std::string boardId;
     std::string minimumRuntimeVersion;
+    AutonomySpec autonomy;
     std::vector<std::string> drivers;
     std::vector<SettingSpec> settings;
     std::vector<RuleSpec> rules;
