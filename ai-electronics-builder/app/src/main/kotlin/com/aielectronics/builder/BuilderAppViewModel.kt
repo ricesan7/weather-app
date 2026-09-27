@@ -107,15 +107,55 @@ class BuilderAppViewModel(
             y = position.y.coerceIn(0.10, 0.96),
         )
         _state.update {
-            it.copy(
-                selectedGraphNodeId = nodeId,
-                graphNodePositions =
-                    it.graphNodePositions + (nodeId to normalized),
-            )
+            val previousPositions = it.graphNodePositions
+            val nextPositions =
+                previousPositions + (nodeId to normalized)
+            if (nextPositions == previousPositions) {
+                it.copy(selectedGraphNodeId = nodeId)
+            } else {
+                it.copy(
+                    selectedGraphNodeId = nodeId,
+                    graphNodePositions = nextPositions,
+                    graphLayoutUndoStack =
+                        (it.graphLayoutUndoStack + previousPositions)
+                            .takeLast(MAX_GRAPH_LAYOUT_HISTORY),
+                    graphLayoutRedoStack = emptyList(),
+                )
+            }
         }
     }
 
     fun finishGraphNodeMove() {
+        persistCurrent()
+    }
+
+    fun undoGraphLayout() {
+        _state.update { state ->
+            val previous = state.graphLayoutUndoStack.lastOrNull()
+                ?: return@update state
+            state.copy(
+                graphNodePositions = previous,
+                graphLayoutUndoStack = state.graphLayoutUndoStack.dropLast(1),
+                graphLayoutRedoStack =
+                    (state.graphLayoutRedoStack + state.graphNodePositions)
+                        .takeLast(MAX_GRAPH_LAYOUT_HISTORY),
+            )
+        }
+        persistCurrent()
+    }
+
+    fun redoGraphLayout() {
+        _state.update { state ->
+            val next = state.graphLayoutRedoStack.lastOrNull()
+                ?: return@update state
+            state.copy(
+                graphNodePositions = next,
+                graphLayoutUndoStack =
+                    (state.graphLayoutUndoStack + state.graphNodePositions)
+                        .takeLast(MAX_GRAPH_LAYOUT_HISTORY),
+                graphLayoutRedoStack = state.graphLayoutRedoStack.dropLast(1),
+            )
+        }
         persistCurrent()
     }
 
@@ -1148,6 +1188,8 @@ class BuilderAppViewModel(
                 graphNodePositions = result.saved.graphNodePositions.filterKeys { nodeId ->
                     result.bundle.projectGraph.nodes.any { it.id == nodeId }
                 },
+                graphLayoutUndoStack = emptyList(),
+                graphLayoutRedoStack = emptyList(),
                 selectedGraphNodeId = null,
             )
         }
@@ -1241,6 +1283,8 @@ class BuilderAppViewModel(
                 revisionPendingSlotId = null,
                 additionalRequestText = "",
                 graphNodePositions = preservedGraphPositions,
+                graphLayoutUndoStack = emptyList(),
+                graphLayoutRedoStack = emptyList(),
                 selectedGraphNodeId =
                     it.selectedGraphNodeId?.takeIf { nodeId ->
                         nodeId in validGraphNodeIds
@@ -1340,6 +1384,7 @@ class BuilderAppViewModel(
 
     private companion object {
         const val BRIDGE_SYNC_INTERVAL_MS = 3_000L
+        const val MAX_GRAPH_LAYOUT_HISTORY = 30
     }
 
     private sealed interface ResolutionResult {
