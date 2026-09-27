@@ -72,6 +72,14 @@ interface BehaviorCompiler {
     ): Result<BehaviorCompilation>
 }
 
+interface OfflineAutonomyCompiler {
+    fun compile(
+        requirements: ResolvedRequirements,
+        capabilities: CapabilitySet,
+        behavior: BehaviorCompilation,
+    ): Result<OfflineAutonomySpec>
+}
+
 interface DesignCoreAssembler {
     fun assemble(
         requirements: ResolvedRequirements,
@@ -81,6 +89,7 @@ interface DesignCoreAssembler {
         circuitGraph: CircuitGraph,
         behavior: BehaviorCompilation,
         validation: ValidationReport,
+        autonomy: OfflineAutonomySpec,
     ): Result<DesignCore>
 }
 
