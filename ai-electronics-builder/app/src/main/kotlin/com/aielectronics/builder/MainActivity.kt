@@ -104,6 +104,12 @@ private fun BuilderAppHost() {
         onDeleteProject = viewModel::deleteProject,
         onNewProject = viewModel::newProject,
         onOpenBuildStep = viewModel::openBuildStep,
+        onGraphNodeSelect = viewModel::selectGraphNode,
+        onGraphNodeMove = viewModel::moveGraphNode,
+        onGraphNodeMoveFinished = viewModel::finishGraphNodeMove,
+        onGraphAddElement = viewModel::addGraphElement,
+        onGraphChangeNode = viewModel::changeGraphNode,
+        onGraphDeleteNode = viewModel::deleteGraphNode,
         onClearError = viewModel::clearError,
     )
 }
