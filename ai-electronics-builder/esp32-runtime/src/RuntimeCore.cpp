@@ -284,6 +284,16 @@ std::unordered_map<std::string, Value> RuntimeCore::telemetry() const {
     return result;
 }
 
+std::vector<RuntimeEvent> RuntimeCore::events() const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    return events_;
+}
+
+void RuntimeCore::clearEvents() {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
+    events_.clear();
+}
+
 bool RuntimeCore::validateSetting(
     const SettingSpec& spec,
     const std::string& candidate,
