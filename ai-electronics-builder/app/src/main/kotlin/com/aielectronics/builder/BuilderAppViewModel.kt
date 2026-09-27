@@ -1740,6 +1740,32 @@ class BuilderAppViewModel(
                             result.bundle.projectGraph.nodes
                                 .map { it.id }
                                 .toSet()
+                        val runtimePendingNames =
+                            result.bundle.designIr.components
+                                .filter {
+                                    instance ->
+                                    instance.properties[
+                                        "runtime_required"
+                                    ] == "true" &&
+                                        instance.properties[
+                                            "runtime_ready"
+                                        ] != "true"
+                                }
+                                .map {
+                                    instance ->
+                                    instance.properties[
+                                        "display_name"
+                                    ] ?: instance.componentId
+                                }
+                        val handoffCompletionMessage =
+                            if (runtimePendingNames.isEmpty()) {
+                                "設計・電気安全検証・Firmware生成が完了しました。"
+                            } else {
+                                "設計・電気安全検証が完了しました。" +
+                                    "Runtime Driver検証待ちのため" +
+                                    "実機配備は保留です: " +
+                                    runtimePendingNames.joinToString()
+                            }
 
                         val from = previous.screen
                         recordFriction {
@@ -1787,8 +1813,14 @@ class BuilderAppViewModel(
                                     if (activeHandoff) 0 else it.deployProgress,
                                 deployMessage =
                                     if (activeHandoff) {
-                                        "Base44の確定仕様から設計を更新しました。" +
-                                            "実機への配備前に内容を確認してください。"
+                                        if (runtimePendingNames.isEmpty()) {
+                                            "Base44の確定仕様から設計を更新しました。" +
+                                                "実機への配備前に内容を確認してください。"
+                                        } else {
+                                            "設計は確認できます。" +
+                                                "Runtime Driver検証完了まで" +
+                                                "実機配備は保留です。"
+                                        }
                                     } else {
                                         it.deployMessage
                                     },
@@ -1800,7 +1832,7 @@ class BuilderAppViewModel(
                                     },
                                 base44HandoffMessage =
                                     if (activeHandoff) {
-                                        "設計・電気安全検証・Firmware生成が完了しました。"
+                                        handoffCompletionMessage
                                     } else {
                                         it.base44HandoffMessage
                                     },
@@ -1811,7 +1843,7 @@ class BuilderAppViewModel(
                             acknowledgeActiveBase44Handoff(
                                 status = "compiled",
                                 message =
-                                    "設計・電気安全検証・Firmware生成が完了しました。",
+                                    handoffCompletionMessage,
                             )
                         }
                         maybeStartBridgeSync()
