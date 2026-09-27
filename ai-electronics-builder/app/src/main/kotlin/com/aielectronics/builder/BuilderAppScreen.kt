@@ -462,6 +462,10 @@ private fun ProjectGraphScreen(
     var changeText by remember(state.selectedGraphNodeId) {
         mutableStateOf("")
     }
+    val paletteComponents = remember {
+        GoldenEngineeringCatalog.components()
+            .filter { it.designReady && it.providesCapabilities.isNotEmpty() }
+    }
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
@@ -543,6 +547,47 @@ private fun ProjectGraphScreen(
                                 modifier = Modifier.fillMaxWidth(),
                             ) {
                                 Text("この要素を削除")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (paletteComponents.isNotEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "検証済み部品パレット",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            "設計Readyの部品だけを表示しています。必要なドライバや電源部品は再設計時に自動選定します。",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        paletteComponents.forEach { component ->
+                            OutlinedButton(
+                                onClick = {
+                                    val capabilities = component.providesCapabilities
+                                        .joinToString("・") { capability ->
+                                            visualCapabilityLabel(capability.value)
+                                        }
+                                    onAddElement(
+                                        component.displayName +
+                                            " (" + component.componentId + ") を追加し、" +
+                                            capabilities +
+                                            "ができるようにしてください。" +
+                                            "この検証済み型番を優先して設計してください。"
+                                    )
+                                },
+                                enabled = !state.busy,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(component.displayName)
                             }
                         }
                     }
@@ -880,6 +925,13 @@ private fun findGraphNodeAt(
                 kotlin.math.abs(center.y - position.y) <= halfHeight
         }
         ?.id
+}
+
+private fun visualCapabilityLabel(capabilityId: String): String = when (capabilityId) {
+    "measure_temperature" -> "温度測定"
+    "measure_humidity" -> "湿度測定"
+    "actuate_fan" -> "ファン制御"
+    else -> capabilityId
 }
 
 private fun projectGraphNodeColor(domain: ProjectGraphDomain): Color = when (domain) {
