@@ -37,6 +37,7 @@ import androidx.compose.ui.graphics.nativeCanvas
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.aielectronics.application.DesignExplanationBuilder
+import com.aielectronics.application.SavedGraphNodePosition
 import com.aielectronics.assembly.GuidedBuildSnapshot
 import com.aielectronics.assembly.GuidedBuildStateMachine
 import com.aielectronics.bench.BenchGateScreen
@@ -47,7 +48,6 @@ import com.aielectronics.core.model.NetType
 import com.aielectronics.core.model.ProjectGraph
 import com.aielectronics.core.model.ProjectGraphDomain
 import com.aielectronics.core.model.ProjectGraphNodeKind
-import com.aielectronics.core.model.ProjectGraphPosition
 import com.aielectronics.parts.GoldenEngineeringCatalog
 
 @Composable
@@ -69,7 +69,7 @@ fun BuilderAppScreen(
     onNewProject: () -> Unit,
     onOpenBuildStep: (Int) -> Unit,
     onGraphNodeSelect: (String?) -> Unit,
-    onGraphNodeMove: (String, ProjectGraphPosition) -> Unit,
+    onGraphNodeMove: (String, SavedGraphNodePosition) -> Unit,
     onGraphNodeMoveFinished: () -> Unit,
     onGraphAddElement: (String) -> Unit,
     onGraphChangeNode: (String, String) -> Unit,
@@ -444,7 +444,7 @@ private fun ProjectGraphScreen(
     state: BuilderAppState,
     onOpen: (AppScreen) -> Unit,
     onNodeSelect: (String?) -> Unit,
-    onNodeMove: (String, ProjectGraphPosition) -> Unit,
+    onNodeMove: (String, SavedGraphNodePosition) -> Unit,
     onNodeMoveFinished: () -> Unit,
     onAddElement: (String) -> Unit,
     onChangeNode: (String, String) -> Unit,
@@ -616,10 +616,10 @@ private fun ProjectGraphScreen(
 @Composable
 private fun ProjectGraphCanvas(
     graph: ProjectGraph,
-    persistedPositions: Map<String, ProjectGraphPosition>,
+    persistedPositions: Map<String, SavedGraphNodePosition>,
     selectedNodeId: String?,
     onNodeSelect: (String?) -> Unit,
-    onNodeMove: (String, ProjectGraphPosition) -> Unit,
+    onNodeMove: (String, SavedGraphNodePosition) -> Unit,
     onNodeMoveFinished: () -> Unit,
 ) {
     val lanes = graph.lanes.sortedBy { it.order }
@@ -645,7 +645,7 @@ private fun ProjectGraphCanvas(
                     .pointerInput(graph, livePositions) {
                         detectTapGestures { offset ->
                             if (size.width <= 0 || size.height <= 0) return@detectTapGestures
-                            val position = ProjectGraphPosition(
+                            val position = SavedGraphNodePosition(
                                 x = offset.x / size.width.toDouble(),
                                 y = offset.y / size.height.toDouble(),
                             )
@@ -664,7 +664,7 @@ private fun ProjectGraphCanvas(
                                 if (size.width <= 0 || size.height <= 0) {
                                     return@detectDragGestures
                                 }
-                                val position = ProjectGraphPosition(
+                                val position = SavedGraphNodePosition(
                                     x = offset.x / size.width.toDouble(),
                                     y = offset.y / size.height.toDouble(),
                                 )
@@ -697,7 +697,7 @@ private fun ProjectGraphCanvas(
                             }
                             change.consume()
 
-                            val requested = ProjectGraphPosition(
+                            val requested = SavedGraphNodePosition(
                                 x = current.x +
                                     dragAmount.x / size.width.toDouble(),
                                 y = current.y +
@@ -811,18 +811,18 @@ private fun ProjectGraphCanvas(
 
 private fun resolveGraphPositions(
     graph: ProjectGraph,
-    persisted: Map<String, ProjectGraphPosition>,
-): Map<String, ProjectGraphPosition> {
+    persisted: Map<String, SavedGraphNodePosition>,
+): Map<String, SavedGraphNodePosition> {
     val lanes = graph.lanes.sortedBy { it.order }
     if (lanes.isEmpty()) return emptyMap()
 
-    val defaults = linkedMapOf<String, ProjectGraphPosition>()
+    val defaults = linkedMapOf<String, SavedGraphNodePosition>()
     lanes.forEachIndexed { laneIndex, lane ->
         val nodes = graph.nodes.filter { it.domain == lane.domain }
         nodes.forEachIndexed { index, node ->
             val x = (laneIndex + 0.5) / lanes.size.toDouble()
             val y = 0.11 + 0.82 * ((index + 1.0) / (nodes.size + 1.0))
-            defaults[node.id] = ProjectGraphPosition(x = x, y = y)
+            defaults[node.id] = SavedGraphNodePosition(x = x, y = y)
         }
     }
 
@@ -842,11 +842,11 @@ private fun resolveGraphPositions(
 private fun clampGraphPosition(
     graph: ProjectGraph,
     nodeId: String,
-    position: ProjectGraphPosition,
-): ProjectGraphPosition {
+    position: SavedGraphNodePosition,
+): SavedGraphNodePosition {
     val lanes = graph.lanes.sortedBy { it.order }
     val node = graph.nodes.firstOrNull { it.id == nodeId }
-        ?: return ProjectGraphPosition(
+        ?: return SavedGraphNodePosition(
             x = position.x.coerceIn(0.02, 0.98),
             y = position.y.coerceIn(0.10, 0.96),
         )
@@ -857,7 +857,7 @@ private fun clampGraphPosition(
     val laneEnd = (laneIndex + 1.0) / lanes.size.toDouble()
     val margin = 0.025
 
-    return ProjectGraphPosition(
+    return SavedGraphNodePosition(
         x = position.x.coerceIn(laneStart + margin, laneEnd - margin),
         y = position.y.coerceIn(0.10, 0.96),
     )
@@ -865,8 +865,8 @@ private fun clampGraphPosition(
 
 private fun findGraphNodeAt(
     graph: ProjectGraph,
-    positions: Map<String, ProjectGraphPosition>,
-    position: ProjectGraphPosition,
+    positions: Map<String, SavedGraphNodePosition>,
+    position: SavedGraphNodePosition,
 ): String? {
     val laneCount = graph.lanes.size.coerceAtLeast(1)
     val halfWidth = (0.78 / laneCount) / 2.0
