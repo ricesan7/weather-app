@@ -57,7 +57,66 @@ class DefaultSoftwareArchitectureCompilerTest {
         assertEquals(BridgeTransport.BLE, plan.deviceBridge?.transport)
         assertEquals("settings.temp_on", plan.deviceBridge?.commands?.single()?.binding)
         assertEquals("telemetry.temperature", plan.deviceBridge?.telemetry?.single()?.binding)
+        assertEquals("現在温度", plan.base44Handoff?.liveTelemetry?.single()?.displayLabel)
+        assertTrue("live_telemetry" in plan.base44Handoff!!.applicationFeatures)
         assertNotNull(plan.base44Handoff)
+    }
+
+    @Test
+    fun `temperature alert stays in Base44 while device bridge only sends telemetry`() {
+        val goal = "温度をスマホに表示して35℃を超えたらアラート通知したい"
+        val core = core(
+            goal = goal,
+            logging = LoggingSpec(
+                channelIds = listOf("temperature"),
+                intervalSeconds = 30,
+                retentionDays = 30,
+                primaryStorage = StorageTarget.PHONE,
+            ),
+        )
+        val ui = UiSpec(
+            listOf(
+                UiPage(
+                    id = "dashboard",
+                    title = "状態",
+                    widgets = listOf(
+                        UiWidget.ValueCard(
+                            id = "temperature",
+                            binding = "telemetry.temperature",
+                            unit = "°C",
+                        )
+                    ),
+                )
+            )
+        )
+
+        val plan = compiler.compile(
+            requirements = ResolvedRequirements(
+                goal = goal,
+                slots = mapOf(
+                    "temp_on" to RequirementValue(
+                        value = "35.0",
+                        source = RequirementSource.USER,
+                        confidence = 1.0,
+                    )
+                ),
+            ),
+            core = core,
+            ui = ui,
+        ).getOrThrow()
+
+        val handoff = plan.base44Handoff!!
+        val alert = handoff.alerts.single()
+
+        assertEquals("telemetry.temperature", alert.sourceBinding)
+        assertEquals("appSettings.temperature_high_threshold", alert.thresholdBinding)
+        assertEquals(35.0, alert.defaultThreshold)
+        assertEquals(AlertEvaluationTarget.BASE44, alert.evaluationTarget)
+        assertTrue(alert.notificationRequired)
+        assertTrue("configurable_alerts" in handoff.applicationFeatures)
+        assertTrue("notifications" in handoff.applicationFeatures)
+        assertTrue(plan.deviceBridge!!.commands.isEmpty())
+        assertEquals("telemetry.temperature", plan.deviceBridge!!.telemetry.single().binding)
     }
 
     @Test
