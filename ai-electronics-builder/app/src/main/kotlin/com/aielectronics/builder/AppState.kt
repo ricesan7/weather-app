@@ -63,6 +63,8 @@ data class BuilderAppState(
     val componentResearchRecords: List<ComponentResearchRecord> = emptyList(),
     val pendingComponentResearchRequests:
         List<ComponentResearchRequest> = emptyList(),
+    val componentReplacementTarget: String? = null,
+    val componentReplacementText: String = "",
     val selectedGraphNodeId: String? = null,
     val graphNodePositions: Map<String, SavedGraphNodePosition> = emptyMap(),
     val graphLayoutUndoStack:
