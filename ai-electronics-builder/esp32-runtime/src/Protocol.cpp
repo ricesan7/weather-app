@@ -142,6 +142,7 @@ RuntimeFrame ProtocolDispatcher::handle(const RuntimeFrame& request) {
                 request,
                 {
                     {"protocol_version", "1"},
+                    {"runtime_version", "0.3.0"},
                     {"manifest", "true"},
                     {"settings", "true"},
                     {"self_test", "true"},
