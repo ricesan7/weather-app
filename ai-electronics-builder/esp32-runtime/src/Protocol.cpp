@@ -149,6 +149,10 @@ RuntimeFrame ProtocolDispatcher::handle(const RuntimeFrame& request) {
                     {"offline_autonomy", "true"},
                     {"persistent_manifest", "true"},
                     {"persistent_settings", "true"},
+                    {
+                        "driver_profile_families",
+                        "DHT_PULSE_SENSOR,GPIO_DIGITAL_INPUT"
+                    },
                 }
             );
         }
