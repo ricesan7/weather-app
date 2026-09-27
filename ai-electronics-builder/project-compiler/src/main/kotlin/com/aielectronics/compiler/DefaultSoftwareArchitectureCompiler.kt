@@ -21,31 +21,38 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
             "アプリ",
         )
         if (explicitMobileRequest) {
-            reasons += "スマートフォン用の操作・表示ソフトが要求されています。"
+            reasons += "スマートフォン用ソフトウェアが要求されています。"
         }
 
-        val remoteOrNotificationRequest = goal.containsAny(
+        val remoteRequest = goal.containsAny(
             "遠隔操作",
             "リモート操作",
             "外出先",
+            "remote control",
+            "remote access",
+        )
+        if (remoteRequest) {
+            reasons += "遠隔利用を伴うアプリケーション機能が要求されています。"
+        }
+
+        val notificationRequest = goal.containsAny(
             "通知",
             "アラート",
             "警告",
             "push notification",
-            "remote control",
             "alert",
         )
-        if (remoteOrNotificationRequest) {
-            reasons += "遠隔操作または通知を伴うソフトウェア機能が要求されています。"
+        if (notificationRequest) {
+            reasons += "通知を伴うアプリケーション機能が要求されています。"
         }
 
         val phoneLogging = core.logging?.primaryStorage == StorageTarget.PHONE
         if (phoneLogging) {
-            reasons += "履歴データの保存先としてスマートフォンが必要です。"
+            reasons += "履歴データをスマートフォン側で扱う必要があります。"
         }
 
         val companionRequired =
-            explicitMobileRequest || remoteOrNotificationRequest || phoneLogging
+            explicitMobileRequest || remoteRequest || notificationRequest || phoneLogging
 
         if (!companionRequired) {
             return@runCatching SoftwarePlan()
@@ -63,13 +70,29 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
             },
         )
 
-        val alerts = alertSpecs(requirements, goal, bridge.telemetry)
-        val applicationFeatures = buildList {
-            if (bridge.telemetry.isNotEmpty()) add("live_telemetry")
-            if (phoneLogging || core.logging != null) add("telemetry_history")
-            if (bridge.commands.isNotEmpty()) add("device_settings")
-            if (alerts.isNotEmpty()) add("configurable_alerts")
-            if (alerts.any { it.notificationRequired }) add("notifications")
+        val capabilities = buildSet {
+            if (bridge.telemetry.isNotEmpty()) {
+                add(Base44ApplicationCapability.LIVE_DATA)
+            }
+            if (core.logging != null) {
+                add(Base44ApplicationCapability.HISTORY)
+            }
+            if (bridge.commands.isNotEmpty()) {
+                add(Base44ApplicationCapability.DEVICE_CONTROL)
+                add(Base44ApplicationCapability.DEVICE_SETTINGS)
+            }
+            if (notificationRequest) {
+                add(Base44ApplicationCapability.NOTIFICATIONS)
+            }
+            if (remoteRequest) {
+                add(Base44ApplicationCapability.REMOTE_ACCESS)
+            }
+            if (goal.containsAny("自動化", "automation")) {
+                add(Base44ApplicationCapability.AUTOMATION)
+            }
+            if (goal.containsAny("ai", "人工知能")) {
+                add(Base44ApplicationCapability.AI_FEATURES)
+            }
         }
 
         SoftwarePlan(
@@ -84,17 +107,10 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
                 goal = core.project.goal,
                 uiSpec = ui,
                 bridge = bridge,
-                liveTelemetry = bridge.telemetry.map {
-                    Base44TelemetryBinding(
-                        sourceBinding = it.binding,
-                        displayLabel = displayLabel(it.id),
-                        unit = it.unit,
-                        historyEnabled =
-                            core.logging?.channelIds?.contains(it.id) == true,
-                    )
-                },
-                alerts = alerts,
-                applicationFeatures = applicationFeatures,
+                integration = AppHardwareIntegrationContract(
+                    channels = integrationChannels(bridge),
+                ),
+                requestedCapabilities = capabilities,
             ),
         )
     }
@@ -175,7 +191,6 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
                     id = channelId,
                     binding = "telemetry.$channelId",
                     valueType = telemetryType(channelId),
-                    unit = unitFor(channelId),
                 )
             }
 
@@ -183,74 +198,60 @@ class DefaultSoftwareArchitectureCompiler : SoftwareArchitectureCompiler {
             .distinctBy { it.binding }
     }
 
-    private fun alertSpecs(
-        requirements: ResolvedRequirements,
-        goal: String,
-        telemetry: List<DeviceBridgeTelemetry>,
-    ): List<Base44AlertSpec> {
-        val wantsAlert = goal.containsAny(
-            "通知",
-            "アラート",
-            "警告",
-            "push notification",
-            "alert",
-        )
-        if (!wantsAlert) return emptyList()
-
-        val available = telemetry.associateBy { it.id }
-        val alerts = mutableListOf<Base44AlertSpec>()
-
-        if ("temperature" in available && goal.containsAny("温度", "temperature")) {
-            alerts += Base44AlertSpec(
-                id = "temperature_high",
-                label = "高温アラート",
-                sourceBinding = "telemetry.temperature",
-                operator = AlertOperator.ABOVE,
-                thresholdBinding = "appSettings.temperature_high_threshold",
-                defaultThreshold =
-                    requirements.slots["temp_on"]?.value?.toDoubleOrNull() ?: 30.0,
-                min = -20.0,
-                max = 80.0,
-                step = 0.5,
-                unit = "°C",
+    private fun integrationChannels(
+        bridge: DeviceBridgeSpec,
+    ): List<AppBridgeChannel> = buildList {
+        bridge.telemetry.forEach { telemetry ->
+            add(
+                AppBridgeChannel(
+                    id = telemetry.id,
+                    binding = telemetry.binding,
+                    direction = AppBridgeDirection.HARDWARE_TO_BASE44,
+                    valueType = telemetry.valueType,
+                    unit = telemetry.unit,
+                )
             )
         }
 
-        if ("humidity" in available && goal.containsAny("湿度", "humidity")) {
-            alerts += Base44AlertSpec(
-                id = "humidity_high",
-                label = "高湿度アラート",
-                sourceBinding = "telemetry.humidity",
-                operator = AlertOperator.ABOVE,
-                thresholdBinding = "appSettings.humidity_high_threshold",
-                defaultThreshold =
-                    requirements.slots["rh_on"]?.value?.toDoubleOrNull() ?: 75.0,
-                min = 0.0,
-                max = 100.0,
-                step = 1.0,
-                unit = "%",
+        bridge.commands.forEach { command ->
+            add(
+                AppBridgeChannel(
+                    id = command.id,
+                    binding = command.binding,
+                    direction = AppBridgeDirection.BASE44_TO_HARDWARE,
+                    valueType = command.valueType,
+                    min = command.min,
+                    max = command.max,
+                    step = command.step,
+                    allowedValues = command.allowedValues,
+                )
             )
         }
 
-        return alerts
-    }
-
-    private fun displayLabel(id: String): String = when (id) {
-        "temperature" -> "現在温度"
-        "humidity" -> "現在湿度"
-        "fan_state" -> "ファン状態"
-        else -> id
-    }
-
-    private fun unitFor(id: String): String? = when (id) {
-        "temperature" -> "°C"
-        "humidity" -> "%"
-        else -> null
+        bridge.events.forEach { event ->
+            add(
+                AppBridgeChannel(
+                    id = event.id,
+                    binding = "events." + event.id,
+                    direction = AppBridgeDirection.HARDWARE_EVENT_TO_BASE44,
+                    valueType = BridgeValueType.TEXT,
+                )
+            )
+        }
     }
 
     private fun telemetryType(binding: String): BridgeValueType = when {
-        binding.containsAny("temperature", "humidity", "voltage", "current") ->
-            BridgeValueType.NUMBER
+        binding.containsAny(
+            "temperature",
+            "humidity",
+            "voltage",
+            "current",
+            "pressure",
+            "distance",
+            "speed",
+            "level",
+            "value",
+        ) -> BridgeValueType.NUMBER
         else -> BridgeValueType.TEXT
     }
 
