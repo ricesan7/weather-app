@@ -19,6 +19,8 @@ import com.aielectronics.compiler.CompileResult
 import com.aielectronics.compiler.RequirementResolution
 import com.aielectronics.core.model.AppBridgeDirection
 import com.aielectronics.core.model.AppHardwareIntegrationContract
+import com.aielectronics.core.model.ProjectGraphNodeKind
+import com.aielectronics.core.model.ProjectGraphPosition
 import com.aielectronics.core.model.ReleaseBundle
 import com.aielectronics.core.model.ResolvedRequirements
 import com.aielectronics.control.RuntimeControlClient
@@ -77,6 +79,137 @@ class BuilderAppViewModel(
 
     fun setAdditionalRequest(text: String) {
         _state.update { it.copy(additionalRequestText = text) }
+    }
+
+    fun selectGraphNode(nodeId: String?) {
+        val graph = _state.value.bundle?.projectGraph ?: return
+        val selected = nodeId?.takeIf { candidate ->
+            graph.nodes.any { it.id == candidate }
+        }
+        _state.update {
+            it.copy(
+                selectedGraphNodeId = selected,
+                error = null,
+            )
+        }
+    }
+
+    fun moveGraphNode(
+        nodeId: String,
+        position: ProjectGraphPosition,
+    ) {
+        val graph = _state.value.bundle?.projectGraph ?: return
+        if (graph.nodes.none { it.id == nodeId }) return
+
+        val normalized = ProjectGraphPosition(
+            x = position.x.coerceIn(0.02, 0.98),
+            y = position.y.coerceIn(0.10, 0.96),
+        )
+        _state.update {
+            it.copy(
+                selectedGraphNodeId = nodeId,
+                graphNodePositions =
+                    it.graphNodePositions + (nodeId to normalized),
+            )
+        }
+    }
+
+    fun finishGraphNodeMove() {
+        persistCurrent()
+    }
+
+    fun addGraphElement(description: String) {
+        val clean = description.trim()
+        if (clean.isBlank()) {
+            _state.update { it.copy(error = "追加したいものを入力してください。") }
+            return
+        }
+        submitVisualRevision(
+            "Visual Projectから次の要素を追加してください。\n" +
+                "追加内容: " + clean + "\n" +
+                "既存の回路・電源・ファームウェア・Base44アプリ・Hardware Bridgeとの整合性を保ち、" +
+                "必要な変更をすべて同じプロジェクトへ反映してください。"
+        )
+    }
+
+    fun changeGraphNode(
+        nodeId: String,
+        instruction: String,
+    ) {
+        val clean = instruction.trim()
+        if (clean.isBlank()) {
+            _state.update { it.copy(error = "変更内容を入力してください。") }
+            return
+        }
+        val node = _state.value.bundle
+            ?.projectGraph
+            ?.nodes
+            ?.firstOrNull { it.id == nodeId }
+            ?: run {
+                _state.update { it.copy(error = "選択した要素が見つかりません。") }
+                return
+            }
+
+        submitVisualRevision(
+            "Visual Project上の要素を変更してください。\n" +
+                "対象: " + node.label + " (" + node.kind.name + ")\n" +
+                "変更内容: " + clean + "\n" +
+                "変更後は回路・BOM・配線・動作・ファームウェア・Base44アプリ・Hardware Bridgeを" +
+                "必要に応じて再生成し、安全検証を通してください。"
+        )
+    }
+
+    fun deleteGraphNode(nodeId: String) {
+        val node = _state.value.bundle
+            ?.projectGraph
+            ?.nodes
+            ?.firstOrNull { it.id == nodeId }
+            ?: run {
+                _state.update { it.copy(error = "選択した要素が見つかりません。") }
+                return
+            }
+
+        if (
+            node.kind == ProjectGraphNodeKind.BOARD ||
+            node.kind == ProjectGraphNodeKind.RUNTIME
+        ) {
+            _state.update {
+                it.copy(
+                    error =
+                        "マイコン本体とHardware Runtimeは直接削除できません。" +
+                            "置き換えたい場合は「変更」を使用してください。"
+                )
+            }
+            return
+        }
+
+        submitVisualRevision(
+            "Visual Project上の次の要素を削除してください。\n" +
+                "対象: " + node.label + " (" + node.kind.name + ")\n" +
+                "この要素に依存する配線・電源・動作ルール・ファームウェア・Base44 UIも確認し、" +
+                "不要になった依存要素だけを安全に整理してください。"
+        )
+    }
+
+    private fun submitVisualRevision(request: String) {
+        val current = _state.value
+        if (current.projectId == null || current.bundle == null) {
+            _state.update { it.copy(error = "先に設計を作成してください。") }
+            return
+        }
+        if (current.busy) return
+
+        _state.update {
+            it.copy(
+                screen = AppScreen.REVISION,
+                additionalRequestText = request,
+                revisionReturnScreen = AppScreen.GRAPH,
+                revisionCandidateGoalText =
+                    it.revisionCandidateGoalText.ifBlank { it.goalText },
+                error = null,
+            )
+        }
+        applyAdditionalRequest()
     }
 
     fun setBridgePairingCode(text: String) {
@@ -360,6 +493,7 @@ class BuilderAppViewModel(
                     revisionClarificationValues = emptyMap(),
                     revisionPendingSlotId = null,
                     revisionStatusMessage = "",
+                    revisionReturnScreen = null,
                     revisionMessages = listOf(
                         assistantMessage(
                             "追加したい機能や変更したい条件を教えてください。" +
@@ -966,6 +1100,10 @@ class BuilderAppViewModel(
                     },
                 screen = restoredScreen,
                 lastSavedAtEpochMs = result.saved.updatedAtEpochMs,
+                graphNodePositions = result.saved.graphNodePositions.filterKeys { nodeId ->
+                    result.bundle.projectGraph.nodes.any { it.id == nodeId }
+                },
+                selectedGraphNodeId = null,
             )
         }
     }
@@ -1021,11 +1159,15 @@ class BuilderAppViewModel(
             previous.completedConnectionIds.intersect(currentConnectionIds)
         val lastIndex =
             (bundle.diagramSpec.buildPlan?.steps?.lastIndex ?: 0).coerceAtLeast(0)
+        val returnScreen = previous.revisionReturnScreen ?: AppScreen.DESIGN
+        val validGraphNodeIds = bundle.projectGraph.nodes.map { it.id }.toSet()
+        val preservedGraphPositions =
+            previous.graphNodePositions.filterKeys { it in validGraphNodeIds }
 
         recordFriction {
             recordScreenTransition(
-                from = AppScreen.REVISION.name,
-                to = AppScreen.DESIGN.name,
+                from = previous.screen.name,
+                to = returnScreen.name,
                 userInitiated = false,
             )
         }
@@ -1038,7 +1180,7 @@ class BuilderAppViewModel(
                 pendingQuestions = emptyList(),
                 requirements = requirements,
                 bundle = bundle,
-                screen = AppScreen.DESIGN,
+                screen = returnScreen,
                 deployed = false,
                 connection = null,
                 deployProgress = 0,
@@ -1053,6 +1195,12 @@ class BuilderAppViewModel(
                 revisionClarificationValues = emptyMap(),
                 revisionPendingSlotId = null,
                 additionalRequestText = "",
+                graphNodePositions = preservedGraphPositions,
+                selectedGraphNodeId =
+                    it.selectedGraphNodeId?.takeIf { nodeId ->
+                        nodeId in validGraphNodeIds
+                    },
+                revisionReturnScreen = null,
                 error = null,
             )
         }
@@ -1085,6 +1233,7 @@ class BuilderAppViewModel(
             createdAtEpochMs =
                 snapshotState.projectCreatedAtEpochMs ?: now,
             updatedAtEpochMs = now,
+            graphNodePositions = snapshotState.graphNodePositions,
         )
 
         viewModelScope.launch {
