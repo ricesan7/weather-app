@@ -100,6 +100,11 @@ bool RuntimeCore::persistManifest(
 
     if (!hardware_.storeManifest(encodedManifest)) {
         error = "Failed to persist project manifest";
+        manifest_.reset();
+        settings_.clear();
+        inputs_.clear();
+        outputs_.clear();
+        events_.clear();
         return false;
     }
 
