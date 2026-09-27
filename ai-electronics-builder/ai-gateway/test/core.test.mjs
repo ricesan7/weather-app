@@ -106,6 +106,9 @@ test("component research request enables web search with structured output", () 
   assert.equal(request.text.format.type, "json_schema");
   assert.equal(request.text.format.strict, true);
   assert.equal(request.store, false);
+  assert.ok(
+    request.text.format.schema.required.includes("driver_profile")
+  );
 });
 
 test("component research only keeps URLs returned by actual web search", async () => {
@@ -152,6 +155,32 @@ test("component research only keeps URLs returned by actual web search", async (
                     i2c_address: "",
                     requires_external_power: false,
                     driver_id: "",
+                    driver_profile: {
+                      family: "DHT_PULSE_SENSOR",
+                      sample_interval_ms: 2000,
+                      parameters: [
+                        { key: "variant", value: "DHT11" },
+                        { key: "start_low_us", value: "18000" },
+                        { key: "zero_high_max_us", value: "40" },
+                        { key: "one_high_min_us", value: "60" }
+                      ],
+                      telemetry: [
+                        {
+                          id: "temperature",
+                          unit: "C",
+                          source: "DHT_TEMPERATURE",
+                          scale: 1,
+                          offset: 0
+                        },
+                        {
+                          id: "humidity",
+                          unit: "%",
+                          source: "DHT_HUMIDITY",
+                          scale: 1,
+                          offset: 0
+                        }
+                      ]
+                    },
                     capabilities: [
                       "measure_temperature",
                       "measure_humidity"
