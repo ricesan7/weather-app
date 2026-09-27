@@ -45,6 +45,8 @@ object BeginnerErrorPresenter {
             "配線設計を完成できませんでした。"
         "behavior_compile" ->
             "指定された動作条件を安全な制御ルールに変換できませんでした。"
+        "software_architecture_compile" ->
+            "スマホソフトと装置をつなぐ通信仕様を完成できませんでした。"
         else ->
             "設計を完成できませんでした。条件を少し変えてもう一度試してください。"
     }
@@ -70,6 +72,12 @@ object DesignExplanationBuilder {
 
         if (bundle.designIr.settings.any { it.mutableAtRuntime }) {
             add("しきい値や動作モードは装置を書き直さず、完成後もスマホから変更できます。")
+        }
+
+        if (bundle.softwarePlan.base44DesignRequired) {
+            add(
+                "スマホ用ソフトはBase44で設計し、実機制御はAndroid Hardware Bridgeを経由する構成にしています。"
+            )
         }
     }
 }
