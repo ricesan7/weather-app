@@ -101,6 +101,7 @@ data class ComponentSpec(
     val requiredSupportTags: Set<String> = emptySet(),
     val tags: Set<String> = emptySet(),
     val driverId: String? = null,
+    val runtimeDriverProfile: RuntimeDriverProfile? = null,
     val designReady: Boolean = false,
     val engineeringPriority: Int = 0,
     val pins: List<ComponentPinSpec> = emptyList(),
