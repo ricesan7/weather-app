@@ -162,6 +162,10 @@ private fun BuilderAppHost() {
         onReceiveBase44Design = {
             viewModel.receiveBase44Design(context)
         },
+        onRetryComponentResearch =
+            viewModel::retryPendingComponentResearch,
+        onChangeResearchComponent =
+            viewModel::prepareResearchComponentChange,
         onBuildProgress = viewModel::updateBuildProgress,
         onResumeProject = viewModel::resumeProject,
         onDeleteProject = viewModel::deleteProject,
