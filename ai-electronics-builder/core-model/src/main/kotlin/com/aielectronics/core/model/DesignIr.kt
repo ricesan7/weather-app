@@ -20,6 +20,7 @@ data class DesignIr(
     val assembly: AssemblySpec,
     val deployment: DeploymentSpec,
     val safety: SafetySummary,
+    val autonomy: OfflineAutonomySpec = OfflineAutonomySpec(),
 )
 
 data class ProjectInfo(val id: String, val name: String, val goal: String)
