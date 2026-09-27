@@ -136,7 +136,12 @@ object GoldenEngineeringCatalog : EngineeringCatalog {
                     "pin_xiao_d3_gpio4",
                     "D3 / GPIO4",
                     4,
-                    setOf(BoardPinCapability.DIGITAL_OUT, BoardPinCapability.PWM),
+                    setOf(
+                        BoardPinCapability.DIGITAL_IN,
+                        BoardPinCapability.DIGITAL_OUT,
+                        BoardPinCapability.DIGITAL_IO,
+                        BoardPinCapability.PWM,
+                    ),
                     100,
                 ),
                 BoardPinSpec(
