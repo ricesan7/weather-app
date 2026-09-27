@@ -32,8 +32,18 @@ class DefaultProjectCompiler(
 
         val capabilities = capabilityMapper.map(requirements)
 
-        val components = componentResolver.resolve(capabilities, requirements)
-            .getOrElse { return failed("component_resolve", it) }
+        val components = componentResolver
+            .resolve(capabilities, requirements)
+            .getOrElse { throwable ->
+                if (
+                    throwable is ComponentResearchRequiredException
+                ) {
+                    return CompileResult.NeedsComponentResearch(
+                        throwable.requests
+                    )
+                }
+                return failed("component_resolve", throwable)
+            }
 
         val board = boardSelector.select(capabilities, components, requirements)
             .getOrElse { return failed("board_select", it) }
