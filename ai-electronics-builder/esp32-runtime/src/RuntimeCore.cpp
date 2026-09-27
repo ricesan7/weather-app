@@ -89,6 +89,39 @@ bool RuntimeCore::deploy(const Manifest& manifest, std::string& error) {
     return true;
 }
 
+bool RuntimeCore::persistManifest(
+    const std::string& encodedManifest,
+    std::string& error
+) {
+    if (!manifest_) {
+        error = "No project deployed";
+        return false;
+    }
+
+    if (!hardware_.storeManifest(encodedManifest)) {
+        error = "Failed to persist project manifest";
+        return false;
+    }
+
+    return true;
+}
+
+bool RuntimeCore::restorePersistedManifest(std::string& error) {
+    const auto encoded = hardware_.loadManifest();
+    if (!encoded) {
+        error = "No persisted project manifest";
+        return false;
+    }
+
+    try {
+        const auto manifest = ManifestParser().parse(*encoded);
+        return deploy(manifest, error);
+    } catch (const std::exception& e) {
+        error = std::string("Persisted manifest invalid: ") + e.what();
+        return false;
+    }
+}
+
 bool RuntimeCore::verifyProject(const std::string& projectId) const {
     return manifest_.has_value() && manifest_->projectId == projectId;
 }
