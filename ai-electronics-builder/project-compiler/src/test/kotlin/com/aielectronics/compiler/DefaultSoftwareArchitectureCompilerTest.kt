@@ -72,6 +72,20 @@ class DefaultSoftwareArchitectureCompilerTest {
         assertTrue(
             Base44ApplicationCapability.LIVE_DATA in handoff.requestedCapabilities
         )
+        val telemetryChannel = handoff.integration.channels.first {
+            it.binding == "telemetry.sensor_value"
+        }
+        assertEquals(
+            AppBridgePresentation.VALUE,
+            telemetryChannel.presentation,
+        )
+        val settingChannel = handoff.integration.channels.first {
+            it.binding == "settings.target_value"
+        }
+        assertEquals(
+            AppBridgePresentation.SLIDER,
+            settingChannel.presentation,
+        )
         assertTrue(
             Base44ApplicationCapability.DEVICE_SETTINGS in handoff.requestedCapabilities
         )
