@@ -86,6 +86,8 @@ class BleRuntimeTransportTest {
                     "settings" to "true",
                     "self_test" to "true",
                     "telemetry" to "true",
+                    "driver_profile_families" to
+                        "DHT_PULSE_SENSOR,GPIO_DIGITAL_INPUT",
                 ),
             )
         }
@@ -98,6 +100,13 @@ class BleRuntimeTransportTest {
         assertTrue(capabilities.settings)
         assertTrue(capabilities.selfTest)
         assertTrue(capabilities.telemetry)
+        assertEquals(
+            setOf(
+                "DHT_PULSE_SENSOR",
+                "GPIO_DIGITAL_INPUT",
+            ),
+            capabilities.driverProfileFamilies,
+        )
     }
 
     @Test
