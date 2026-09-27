@@ -3,6 +3,7 @@ package com.aielectronics.builder
 import com.aielectronics.application.SavedProjectSummary
 import com.aielectronics.ble.android.AndroidBleRuntimeConnection
 import com.aielectronics.core.model.MissingRequirement
+import com.aielectronics.core.model.ProjectGraphPosition
 import com.aielectronics.core.model.ReleaseBundle
 import com.aielectronics.core.model.ResolvedRequirements
 
@@ -52,4 +53,7 @@ data class BuilderAppState(
     val base44BridgeStatus: String = "",
     val base44BridgeOnline: Boolean = false,
     val bridgeLastSyncAtEpochMs: Long? = null,
+    val selectedGraphNodeId: String? = null,
+    val graphNodePositions: Map<String, ProjectGraphPosition> = emptyMap(),
+    val revisionReturnScreen: AppScreen? = null,
 )
