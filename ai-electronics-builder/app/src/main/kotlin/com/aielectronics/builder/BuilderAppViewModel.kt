@@ -1105,17 +1105,35 @@ class BuilderAppViewModel(
 
         viewModelScope.launch {
             _state.update {
+                val preserveClarifications =
+                    handoff.status == "needs_input" &&
+                        it.bundle == null &&
+                        it.goalText == handoff.goalText
                 it.copy(
                     goalText = handoff.goalText,
                     projectTitle = handoff.title,
-                    clarificationValues = emptyMap(),
+                    clarificationValues =
+                        if (preserveClarifications) {
+                            it.clarificationValues
+                        } else {
+                            emptyMap()
+                        },
                     pendingQuestions = emptyList(),
                     base44HandoffRevision = handoff.revision,
-                    base44HandoffStatus = "processing",
+                    base44HandoffStatus =
+                        if (handoff.status == "needs_input") {
+                            "needs_input"
+                        } else {
+                            "processing"
+                        },
                     base44HandoffMessage =
-                        "Base44の確定仕様 revision " +
-                            handoff.revision +
-                            " をProject Compilerで再検証しています。",
+                        if (handoff.status == "needs_input") {
+                            "Base44仕様の追加確認を再開します。"
+                        } else {
+                            "Base44の確定仕様 revision " +
+                                handoff.revision +
+                                " をProject Compilerで再検証しています。"
+                        },
                     error = null,
                 )
             }
