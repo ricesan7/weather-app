@@ -26,7 +26,27 @@ public:
         return command != "force_fail";
     }
 
+    std::optional<std::string> loadSetting(
+        const std::string& projectId,
+        const std::string& settingId
+    ) override {
+        const auto key = projectId + ":" + settingId;
+        const auto it = persistedSettings.find(key);
+        if (it == persistedSettings.end()) return std::nullopt;
+        return it->second;
+    }
+
+    bool storeSetting(
+        const std::string& projectId,
+        const std::string& settingId,
+        const std::string& value
+    ) override {
+        persistedSettings[projectId + ":" + settingId] = value;
+        return true;
+    }
+
     std::unordered_map<std::string, std::string> outputs;
+    std::unordered_map<std::string, std::string> persistedSettings;
     std::vector<std::string> tests;
 };
 
@@ -36,6 +56,7 @@ std::string goldenManifest() {
         "meta\tproject\tgolden\n"
         "meta\tboard\txiao_esp32s3\n"
         "meta\truntime_min\t0.1.0\n"
+        "autonomy\tAUTONOMOUS_MCU\ttrue\ttrue\ttrue\t\n"
         "driver\tdrv_sht31\n"
         "driver\tdrv_gpio_sink\n"
         "setting\tmode\tENUM\tAUTO\ttrue\t\t\t\tAUTO,MANUAL\t\n"
@@ -77,6 +98,10 @@ void testManifestAndRuntime() {
     assert(manifest.rules.size() == 4);
     assert(manifest.settings.size() == 4);
     assert(manifest.failsafe.size() == 1);
+    assert(manifest.autonomy.coreOperationMode == "AUTONOMOUS_MCU");
+    assert(manifest.autonomy.localBehaviorExecutionRequired);
+    assert(manifest.autonomy.localSafetyExecutionRequired);
+    assert(manifest.autonomy.persistRuntimeSettings);
 
     FakeHardware hardware;
     aie::RuntimeCore runtime(
@@ -118,6 +143,52 @@ void testManifestAndRuntime() {
     assert(runtime.runTest("sensor_probe"));
     assert(runtime.runTest("fan_output_test"));
     assert(hardware.tests.size() == 2);
+}
+
+void testAutonomousControlWithoutPhoneBridge() {
+    const auto manifest = aie::ManifestParser().parse(goldenManifest());
+
+    FakeHardware hardware;
+    aie::RuntimeCore runtime(
+        hardware,
+        std::set<std::string>{"drv_sht31", "drv_gpio_sink"}
+    );
+
+    std::string error;
+    assert(runtime.deploy(manifest, error));
+
+    // No BLE bridge, Android client, or cloud connection is involved here.
+    runtime.updateInput("temperature", aie::Value(33.0));
+    runtime.updateInput("required_sensor_invalid_for", aie::Value(0.0));
+    runtime.tick();
+
+    assert(hardware.outputs["fan"] == "ON");
+}
+
+void testRuntimeSettingsSurviveRuntimeRecreation() {
+    const auto manifest = aie::ManifestParser().parse(goldenManifest());
+
+    FakeHardware hardware;
+    std::string error;
+
+    {
+        aie::RuntimeCore runtime(
+            hardware,
+            std::set<std::string>{"drv_sht31", "drv_gpio_sink"}
+        );
+        assert(runtime.deploy(manifest, error));
+        assert(runtime.setSetting("temp_on", "32.0", error));
+        assert(runtime.getSetting("temp_on").value() == "32.0");
+    }
+
+    {
+        aie::RuntimeCore rebooted(
+            hardware,
+            std::set<std::string>{"drv_sht31", "drv_gpio_sink"}
+        );
+        assert(rebooted.deploy(manifest, error));
+        assert(rebooted.getSetting("temp_on").value() == "32.0");
+    }
 }
 
 void testUnsupportedDriverBlocked() {
@@ -271,6 +342,8 @@ void testBleRuntimeBridge() {
 int main() {
     testExpression();
     testManifestAndRuntime();
+    testAutonomousControlWithoutPhoneBridge();
+    testRuntimeSettingsSurviveRuntimeRecreation();
     testUnsupportedDriverBlocked();
     testProtocol();
     testBlePacketContract();
