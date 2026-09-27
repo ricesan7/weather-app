@@ -424,6 +424,7 @@ private fun HomeScreen(
                                     )
                                 }
                                 if (
+                                    state.bundle != null &&
                                     record.status !=
                                         ComponentVerificationStatus.DESIGN_READY &&
                                     !state.componentResearchActive
@@ -466,7 +467,13 @@ private fun HomeScreen(
                             }
                             Text(
                                 "公式資料とRuntime Driverをもう一度確認し、" +
-                                    "条件を満たせば自動で設計を再開します。",
+                                    "条件を満たせば自動で設計を再開します。" +
+                                    if (state.bundle == null) {
+                                        " 改善しない場合は下の仕様欄で" +
+                                            "対象部品を変更して再設計できます。"
+                                    } else {
+                                        ""
+                                    },
                                 style =
                                     MaterialTheme.typography.bodySmall,
                             )
