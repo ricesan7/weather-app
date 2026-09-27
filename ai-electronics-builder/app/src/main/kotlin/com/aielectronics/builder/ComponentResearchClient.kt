@@ -103,7 +103,7 @@ class GatewayComponentResearchClient(
                 )
             }
 
-            parseAndValidate(
+            ComponentResearchResponseValidator.parse(
                 request = request,
                 json = JSONObject(responseText),
             )
@@ -112,7 +112,10 @@ class GatewayComponentResearchClient(
         }
     }
 
-    private fun parseAndValidate(
+}
+
+internal object ComponentResearchResponseValidator {
+    fun parse(
         request: ComponentResearchRequest,
         json: JSONObject,
     ): ComponentResearchRecord {
@@ -137,7 +140,7 @@ class GatewayComponentResearchClient(
                     ElectricalInterface.valueOf(interfaceName)
                 }.getOrNull()
             }
-
+    
         val sources =
             json.optJSONArray("sources")
                 ?.objects()
@@ -164,7 +167,7 @@ class GatewayComponentResearchClient(
                     )
                 }
                 .orEmpty()
-
+    
         val hasOfficialEvidence =
             json.optBoolean(
                 "evidence_complete",
@@ -176,7 +179,7 @@ class GatewayComponentResearchClient(
                         it.authority ==
                         ResearchSourceAuthority.MANUFACTURER_PRODUCT_PAGE
                 }
-
+    
         val capabilities =
             json.optJSONArray("capabilities")
                 ?.strings()
@@ -184,12 +187,12 @@ class GatewayComponentResearchClient(
                 ?.map(::CapabilityId)
                 ?.toSet()
                 .orEmpty()
-
+    
         val rawPins =
             json.optJSONArray("pins")
                 ?.objects()
                 .orEmpty()
-
+    
         val pins =
             rawPins.mapIndexedNotNull { index, pin ->
                 val label =
@@ -218,7 +221,7 @@ class GatewayComponentResearchClient(
                     )
                 }
             }
-
+    
         val minV = json.nullableDouble("voltage_min_v")
         val typicalV =
             json.nullableDouble("voltage_typical_v")
@@ -235,17 +238,17 @@ class GatewayComponentResearchClient(
             } else {
                 null
             }
-
+    
         val driverId =
             json.optString("driver_id")
                 .trim()
                 .takeIf { it.isNotBlank() }
-
+    
         val i2cAddress =
             json.optString("i2c_address")
                 .trim()
                 .takeIf { it.isNotBlank() }
-
+    
         val missing = linkedSetOf<String>()
         if (!hasOfficialEvidence) {
             missing += "manufacturer_evidence"
@@ -277,7 +280,7 @@ class GatewayComponentResearchClient(
         ) {
             missing += "i2c_address"
         }
-
+    
         val simpleGpioInput =
             primaryInterface == ElectricalInterface.GPIO &&
                 kind in setOf(
@@ -290,7 +293,7 @@ class GatewayComponentResearchClient(
                         ComponentPinRole.DATA,
                     )
                 }
-
+    
         if (
             kind in setOf(
                 ComponentKind.SENSOR,
@@ -301,17 +304,17 @@ class GatewayComponentResearchClient(
         ) {
             missing += "runtime_driver"
         }
-
+    
         val hazardous =
             (maxV ?: 0.0) > 60.0 ||
                 request.projectGoal.containsHazardousEnergyTerm() ||
                 request.requested.rawName
                     .containsHazardousEnergyTerm()
-
+    
         val confidence =
             json.optDouble("confidence", 0.0)
                 .coerceIn(0.0, 1.0)
-
+    
         val status =
             when {
                 hasOfficialEvidence &&
@@ -319,19 +322,19 @@ class GatewayComponentResearchClient(
                     !hazardous &&
                     confidence >= 0.80 ->
                     ComponentVerificationStatus.DESIGN_READY
-
+    
                 hasOfficialEvidence &&
                     manufacturer.isNotBlank() &&
                     model.isNotBlank() ->
                     ComponentVerificationStatus.VERIFIED
-
+    
                 sources.isNotEmpty() ->
                     ComponentVerificationStatus.EXTRACTED
-
+    
                 else ->
                     ComponentVerificationStatus.DISCOVERED
             }
-
+    
         val component =
             if (
                 manufacturer.isNotBlank() &&
@@ -409,7 +412,7 @@ class GatewayComponentResearchClient(
             } else {
                 null
             }
-
+    
         val notes =
             buildList {
                 json.optJSONArray("notes")
@@ -428,7 +431,7 @@ class GatewayComponentResearchClient(
                     )
                 }
             }
-
+    
         return ComponentResearchRecord(
             requestId = request.requestId,
             requestedName =
@@ -448,7 +451,7 @@ class GatewayComponentResearchClient(
                 System.currentTimeMillis(),
         )
     }
-
+    
     private fun signalRequirements(
         primaryInterface: ElectricalInterface?,
         pins: List<ComponentPinSpec>,
@@ -466,7 +469,7 @@ class GatewayComponentResearchClient(
                             WireSemantic.SIGNAL,
                         shareable = true,
                     )
-
+    
                 ComponentPinRole.I2C_SCL ->
                     SignalRequirement(
                         id = pin.pinId,
@@ -478,7 +481,7 @@ class GatewayComponentResearchClient(
                             WireSemantic.SIGNAL,
                         shareable = true,
                     )
-
+    
                 ComponentPinRole.DATA ->
                     SignalRequirement(
                         id = pin.pinId,
@@ -496,7 +499,7 @@ class GatewayComponentResearchClient(
                         wireSemantic =
                             WireSemantic.SIGNAL,
                     )
-
+    
                 ComponentPinRole.SIGNAL_OUTPUT ->
                     SignalRequirement(
                         id = pin.pinId,
@@ -507,7 +510,7 @@ class GatewayComponentResearchClient(
                         wireSemantic =
                             WireSemantic.SIGNAL,
                     )
-
+    
                 ComponentPinRole.SIGNAL_INPUT,
                 ComponentPinRole.CONTROL_INPUT ->
                     SignalRequirement(
@@ -519,11 +522,11 @@ class GatewayComponentResearchClient(
                         wireSemantic =
                             WireSemantic.CONTROL,
                     )
-
+    
                 else -> null
             }
         }
-
+    
     private fun roleFor(
         kind: ComponentKind,
         model: String,
@@ -536,7 +539,7 @@ class GatewayComponentResearchClient(
             ComponentKind.POWER_SUPPLY -> "power_" + slug(model)
             else -> "component_" + slug(model)
         }
-
+    
     private fun componentResearchEndpoint(
         configured: String,
     ): String {
@@ -547,15 +550,15 @@ class GatewayComponentResearchClient(
                     "/v1/revision-chat"
                 ) +
                     "/v1/component-research"
-
+    
             trimmed.endsWith("/v1/component-research") ->
                 trimmed
-
+    
             else ->
                 trimmed + "/v1/component-research"
         }
     }
-
+    
     private fun slug(value: String): String =
         value.lowercase(Locale.US)
             .replace(
@@ -564,7 +567,7 @@ class GatewayComponentResearchClient(
             )
             .trim('_')
             .ifBlank { "component" }
-
+    
     private fun String.containsHazardousEnergyTerm(): Boolean {
         val normalized = lowercase()
         return listOf(
@@ -581,21 +584,21 @@ class GatewayComponentResearchClient(
             "電磁接触器",
         ).any(normalized::contains)
     }
-
+    
     private fun JSONArray.strings(): List<String> =
         buildList {
             for (index in 0 until length()) {
                 add(getString(index))
             }
         }
-
+    
     private fun JSONArray.objects(): List<JSONObject> =
         buildList {
             for (index in 0 until length()) {
                 add(getJSONObject(index))
             }
         }
-
+    
     private fun JSONObject.nullableDouble(
         key: String,
     ): Double? =
