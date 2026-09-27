@@ -944,6 +944,26 @@ class BuilderAppViewModel(
         if (positions.isEmpty() || contract.pages.isEmpty()) return contract
 
         val graph = bundle.projectGraph
+        val applicationNodes = graph.nodes.filter {
+            it.kind == ProjectGraphNodeKind.APP ||
+                it.kind == ProjectGraphNodeKind.UI_PAGE ||
+                it.kind == ProjectGraphNodeKind.UI_WIDGET
+        }
+        val defaultYByNodeId = applicationNodes
+            .mapIndexed { index, node ->
+                val y =
+                    0.11 +
+                        0.82 *
+                        ((index + 1.0) / (applicationNodes.size + 1.0))
+                node.id to y
+            }
+            .toMap()
+
+        fun visualY(nodeId: String?): Double =
+            nodeId?.let { id ->
+                positions[id]?.y ?: defaultYByNodeId[id]
+            } ?: Double.MAX_VALUE
+
         val pageNodeByPageId = graph.nodes
             .filter { it.kind == ProjectGraphNodeKind.UI_PAGE }
             .mapNotNull { node ->
@@ -964,10 +984,7 @@ class BuilderAppViewModel(
             .sortedWith(
                 compareBy(
                     { page ->
-                        pageNodeByPageId[page.id]
-                            ?.let(positions::get)
-                            ?.y
-                            ?: (page.order + 1).toDouble()
+                        visualY(pageNodeByPageId[page.id])
                     },
                     { it.order },
                 )
@@ -977,10 +994,11 @@ class BuilderAppViewModel(
                     .sortedWith(
                         compareBy(
                             { widget ->
-                                widgetNodeByKey[page.id + "::" + widget.id]
-                                    ?.let(positions::get)
-                                    ?.y
-                                    ?: (widget.order + 1).toDouble()
+                                visualY(
+                                    widgetNodeByKey[
+                                        page.id + "::" + widget.id
+                                    ]
+                                )
                             },
                             { it.order },
                         )
