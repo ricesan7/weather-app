@@ -7,6 +7,25 @@ import java.net.HttpURLConnection
 import java.net.URL
 import java.util.Locale
 
+private fun componentResearchEndpoint(
+    configured: String,
+): String {
+    val trimmed = configured.trim().trimEnd('/')
+    return when {
+        trimmed.endsWith("/v1/revision-chat") ->
+            trimmed.removeSuffix(
+                "/v1/revision-chat"
+            ) +
+                "/v1/component-research"
+
+        trimmed.endsWith("/v1/component-research") ->
+            trimmed
+
+        else ->
+            trimmed + "/v1/component-research"
+    }
+}
+
 interface ComponentResearchClient {
     suspend fun research(
         request: ComponentResearchRequest,
