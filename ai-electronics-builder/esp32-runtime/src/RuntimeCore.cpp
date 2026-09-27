@@ -42,6 +42,7 @@ RuntimeCore::RuntimeCore(
 ) : hardware_(hardware), supportedDrivers_(std::move(supportedDrivers)) {}
 
 bool RuntimeCore::deploy(const Manifest& manifest, std::string& error) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     for (const auto& driver : manifest.drivers) {
         if (supportedDrivers_.count(driver) == 0) {
             error = "Unsupported driver: " + driver;
@@ -76,9 +77,7 @@ bool RuntimeCore::deploy(const Manifest& manifest, std::string& error) {
                 if (validateSetting(setting, *persisted, validationError)) {
                     value = *persisted;
                 } else {
-                    events_.push_back({
-                        "persisted_setting_invalid:" + setting.id
-                    });
+                    recordEvent("persisted_setting_invalid:" + setting.id);
                 }
             }
         }
@@ -93,6 +92,7 @@ bool RuntimeCore::persistManifest(
     const std::string& encodedManifest,
     std::string& error
 ) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!manifest_) {
         error = "No project deployed";
         return false;
@@ -112,6 +112,7 @@ bool RuntimeCore::persistManifest(
 }
 
 bool RuntimeCore::restorePersistedManifest(std::string& error) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto encoded = hardware_.loadManifest();
     if (!encoded) {
         error = "No persisted project manifest";
@@ -128,6 +129,7 @@ bool RuntimeCore::restorePersistedManifest(std::string& error) {
 }
 
 bool RuntimeCore::verifyProject(const std::string& projectId) const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     return manifest_.has_value() && manifest_->projectId == projectId;
 }
 
@@ -136,6 +138,7 @@ bool RuntimeCore::setSetting(
     const std::string& value,
     std::string& error
 ) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!manifest_) {
         error = "No project deployed";
         return false;
@@ -190,16 +193,19 @@ bool RuntimeCore::setSetting(
 }
 
 std::optional<std::string> RuntimeCore::getSetting(const std::string& settingId) const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     const auto it = settings_.find(settingId);
     if (it == settings_.end()) return std::nullopt;
     return it->second;
 }
 
 void RuntimeCore::updateInput(const std::string& id, const Value& value) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     inputs_[id] = value;
 }
 
 void RuntimeCore::tick() {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!manifest_) return;
 
     const auto ctx = context();
@@ -211,7 +217,7 @@ void RuntimeCore::tick() {
                 return;
             }
         } catch (const std::exception&) {
-            events_.push_back({"runtime_expression_error"});
+            recordEvent("runtime_expression_error");
             return;
         }
     }
@@ -232,13 +238,14 @@ void RuntimeCore::tick() {
                 executeActions(rule.actions);
             }
         } catch (const std::exception&) {
-            events_.push_back({"runtime_expression_error"});
+            recordEvent("runtime_expression_error");
             return;
         }
     }
 }
 
 bool RuntimeCore::runTest(const std::string& testId) {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     if (!manifest_) return false;
     const auto it = std::find_if(
         manifest_->tests.begin(),
@@ -250,6 +257,7 @@ bool RuntimeCore::runTest(const std::string& testId) {
 }
 
 std::unordered_map<std::string, Value> RuntimeCore::telemetry() const {
+    std::lock_guard<std::recursive_mutex> lock(mutex_);
     std::unordered_map<std::string, Value> result;
     if (!manifest_) return result;
 
@@ -349,13 +357,13 @@ void RuntimeCore::executeActions(const std::vector<std::string>& actions) {
                                 ) != interlock.blockedActions.end()) {
                                 blocked = true;
                                 if (interlock.mandatory) {
-                                    events_.push_back({"interlock:" + interlock.id});
+                                    recordEvent("interlock:" + interlock.id);
                                 }
                             }
                         }
                     } catch (const std::exception&) {
                         blocked = true;
-                        events_.push_back({"runtime_expression_error"});
+                        recordEvent("runtime_expression_error");
                     }
                 }
             }
@@ -364,10 +372,23 @@ void RuntimeCore::executeActions(const std::vector<std::string>& actions) {
                 outputs_[outputId] = value;
             }
         } else if (parts[0] == "event" && parts.size() >= 2) {
-            events_.push_back({parts[1]});
+            recordEvent(parts[1]);
         } else if (parts[0] == "state" && parts.size() >= 2) {
             inputs_["state"] = Value(parts[1]);
         }
+    }
+}
+
+void RuntimeCore::recordEvent(const std::string& id) {
+    constexpr std::size_t MAX_EVENTS = 100;
+
+    if (!events_.empty() && events_.back().id == id) {
+        return;
+    }
+
+    events_.push_back({id});
+    if (events_.size() > MAX_EVENTS) {
+        events_.erase(events_.begin());
     }
 }
 
