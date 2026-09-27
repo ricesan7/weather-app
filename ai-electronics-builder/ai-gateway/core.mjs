@@ -171,6 +171,7 @@ const COMPONENT_RESEARCH_SCHEMA = {
     voltage_max_v: { type: ["number", "null"] },
     preferred_supply_v: { type: ["number", "null"] },
     current_max_ma: { type: ["number", "null"] },
+    i2c_address: { type: "string" },
     requires_external_power: { type: "boolean" },
     driver_id: { type: "string" },
     capabilities: {
@@ -249,6 +250,7 @@ const COMPONENT_RESEARCH_SCHEMA = {
     "voltage_max_v",
     "preferred_supply_v",
     "current_max_ma",
+    "i2c_address",
     "requires_external_power",
     "driver_id",
     "capabilities",
