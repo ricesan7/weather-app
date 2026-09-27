@@ -268,7 +268,13 @@ internal object ComponentResearchResponseValidator {
             json.optString("driver_id")
                 .trim()
                 .takeIf {
-                    it in KNOWN_BUILT_IN_DRIVER_IDS
+                    builtInDriverAllowed(
+                        driverId = it,
+                        model = model,
+                        kind = kind,
+                        primaryInterface =
+                            primaryInterface,
+                    )
                 }
 
         val driverProfile =
@@ -499,6 +505,32 @@ internal object ComponentResearchResponseValidator {
         )
     }
     
+    private fun builtInDriverAllowed(
+        driverId: String,
+        model: String,
+        kind: ComponentKind,
+        primaryInterface: ElectricalInterface?,
+    ): Boolean =
+        when (driverId) {
+            "drv_sht31" ->
+                primaryInterface ==
+                    ElectricalInterface.I2C &&
+                    model.lowercase(Locale.US)
+                        .contains("sht3")
+
+            "drv_gpio_sink" ->
+                primaryInterface ==
+                    ElectricalInterface.GPIO &&
+                    kind == ComponentKind.DRIVER
+
+            "drv_binary_output" ->
+                primaryInterface ==
+                    ElectricalInterface.GPIO &&
+                    kind == ComponentKind.ACTUATOR
+
+            else -> false
+        }
+
     private fun parseDriverProfile(
         json: JSONObject?,
         manufacturer: String,
@@ -609,13 +641,7 @@ internal object ComponentResearchResponseValidator {
                         }
 
                 RuntimeDriverFamily.GPIO_DIGITAL_OUTPUT ->
-                    primaryInterface ==
-                        ElectricalInterface.GPIO &&
-                        kind in setOf(
-                            ComponentKind.ACTUATOR,
-                            ComponentKind.DRIVER,
-                            ComponentKind.OTHER,
-                        )
+                    false
 
                 RuntimeDriverFamily.I2C_REGISTER_SENSOR ->
                     false
