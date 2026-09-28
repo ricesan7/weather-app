@@ -1,5 +1,6 @@
 package com.aielectronics.builder
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.foundation.gestures.detectTapGestures
@@ -85,6 +86,12 @@ fun BuilderAppScreen(
     onGraphDeleteNode: (String) -> Unit,
     onClearError: () -> Unit,
 ) {
+    BackHandler(
+        enabled = state.componentReplacementTarget != null,
+    ) {
+        onCancelResearchComponentChange()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -129,6 +136,9 @@ fun BuilderAppScreen(
                     onConfirmResearchComponentChange,
                 onCancelResearchComponentChange =
                     onCancelResearchComponentChange,
+                onOpenDesign = {
+                    onOpen(AppScreen.DESIGN)
+                },
                 onResumeProject = onResumeProject,
                 onDeleteProject = onDeleteProject,
                 onNewProject = onNewProject,
@@ -284,6 +294,7 @@ private fun HomeScreen(
     onResearchComponentReplacementChange: (String) -> Unit,
     onConfirmResearchComponentChange: () -> Unit,
     onCancelResearchComponentChange: () -> Unit,
+    onOpenDesign: () -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onNewProject: () -> Unit,
@@ -490,7 +501,13 @@ private fun HomeScreen(
                                             modifier =
                                                 Modifier.fillMaxWidth(),
                                         ) {
-                                            Text("キャンセル")
+                                            Text(
+                                                if (state.bundle != null) {
+                                                    "部品変更をやめて設計へ戻る"
+                                                } else {
+                                                    "部品変更をやめて戻る"
+                                                }
+                                            )
                                         }
                                     } else {
                                         OutlinedButton(
@@ -541,11 +558,26 @@ private fun HomeScreen(
                                         " 改善しない場合は下の仕様欄で" +
                                             "対象部品を変更して再設計できます。"
                                     } else {
-                                        ""
+                                        " 電気設計が完成済みの場合は" +
+                                            "設計画面へ戻って内容を確認できます。"
                                     },
                                 style =
                                     MaterialTheme.typography.bodySmall,
                             )
+                        }
+
+                        if (
+                            state.bundle != null &&
+                            !state.componentResearchActive &&
+                            state.componentReplacementTarget == null
+                        ) {
+                            OutlinedButton(
+                                onClick = onOpenDesign,
+                                enabled = !state.busy,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("設計画面へ戻る")
+                            }
                         }
                     }
                 }
