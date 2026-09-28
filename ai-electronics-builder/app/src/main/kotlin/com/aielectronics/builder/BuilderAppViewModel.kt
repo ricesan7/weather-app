@@ -692,6 +692,12 @@ class BuilderAppViewModel(
     fun cancelResearchComponentChange() {
         _state.update {
             it.copy(
+                screen =
+                    if (it.bundle != null) {
+                        AppScreen.DESIGN
+                    } else {
+                        AppScreen.HOME
+                    },
                 componentReplacementTarget = null,
                 componentReplacementText = "",
                 error = null,
@@ -1959,6 +1965,14 @@ class BuilderAppViewModel(
                                     } else {
                                         it.base44HandoffMessage
                                     },
+                                componentReplacementTarget = null,
+                                componentReplacementText = "",
+                                pendingComponentResearchRequests =
+                                    if (runtimePendingNames.isEmpty()) {
+                                        emptyList()
+                                    } else {
+                                        it.pendingComponentResearchRequests
+                                    },
                             )
                         }
                         persistCurrent()
@@ -2291,6 +2305,8 @@ class BuilderAppViewModel(
                         nodeId in validGraphNodeIds
                     },
                 revisionReturnScreen = null,
+                componentReplacementTarget = null,
+                componentReplacementText = "",
                 error = null,
             )
         }
