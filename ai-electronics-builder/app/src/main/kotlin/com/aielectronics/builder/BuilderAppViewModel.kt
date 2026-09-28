@@ -802,6 +802,12 @@ class BuilderAppViewModel(
                     is CompileResult.NeedUserInput ->
                         ResolutionResult.Questions(compile.questions)
 
+                    is CompileResult.NeedComponentResearch ->
+                        ResolutionResult.Error(
+                            "部品仕様の調査が必要です: " +
+                                compile.capabilities.joinToString { it.value }
+                        )
+
                     is CompileResult.Blocked ->
                         ResolutionResult.Error(
                             BeginnerErrorPresenter.validationBlocked(compile.report)
