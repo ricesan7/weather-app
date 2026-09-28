@@ -374,6 +374,12 @@ class BuilderAppViewModel(
                                         questions = compile.questions,
                                     )
 
+                                is CompileResult.NeedComponentResearch ->
+                                    ResumeResult.Error(
+                                        "部品仕様の調査が必要です: " +
+                                            compile.capabilities.joinToString { it.value }
+                                    )
+
                                 is CompileResult.Blocked ->
                                     ResumeResult.Error(
                                         BeginnerErrorPresenter.validationBlocked(
@@ -623,6 +629,12 @@ class BuilderAppViewModel(
 
                                 is CompileResult.NeedUserInput ->
                                     ResolutionResult.Questions(compile.questions)
+
+                                is CompileResult.NeedComponentResearch ->
+                                    ResolutionResult.Error(
+                                        "部品仕様の調査が必要です: " +
+                                            compile.capabilities.joinToString { it.value }
+                                    )
 
                                 is CompileResult.Blocked ->
                                     ResolutionResult.Error(
