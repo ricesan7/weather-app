@@ -82,10 +82,13 @@ class BleRuntimeTransportTest {
                 type = RuntimeMessageType.CAPABILITIES,
                 fields = mapOf(
                     "protocol_version" to "1",
+                    "runtime_version" to "0.3.0",
                     "manifest" to "true",
                     "settings" to "true",
                     "self_test" to "true",
                     "telemetry" to "true",
+                    "driver_profile_families" to
+                        "DHT_PULSE_SENSOR,GPIO_DIGITAL_INPUT",
                 ),
             )
         }
@@ -94,10 +97,18 @@ class BleRuntimeTransportTest {
         val capabilities = session.handshake().getOrThrow()
 
         assertEquals(1, capabilities.protocolVersion)
+        assertEquals("0.3.0", capabilities.runtimeVersion)
         assertTrue(capabilities.manifest)
         assertTrue(capabilities.settings)
         assertTrue(capabilities.selfTest)
         assertTrue(capabilities.telemetry)
+        assertEquals(
+            setOf(
+                "DHT_PULSE_SENSOR",
+                "GPIO_DIGITAL_INPUT",
+            ),
+            capabilities.driverProfileFamilies,
+        )
     }
 
     @Test

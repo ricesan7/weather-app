@@ -5,6 +5,9 @@ import com.aielectronics.core.model.*
 sealed interface CompileResult {
     data class Success(val bundle: ReleaseBundle) : CompileResult
     data class NeedUserInput(val questions: List<MissingRequirement>) : CompileResult
+    data class NeedsComponentResearch(
+        val requests: List<ComponentResearchRequest>,
+    ) : CompileResult
     data class Blocked(val report: ValidationReport) : CompileResult
     data class Failed(val error: CompileFailure) : CompileResult
 }
@@ -72,6 +75,14 @@ interface BehaviorCompiler {
     ): Result<BehaviorCompilation>
 }
 
+interface OfflineAutonomyCompiler {
+    fun compile(
+        requirements: ResolvedRequirements,
+        capabilities: CapabilitySet,
+        behavior: BehaviorCompilation,
+    ): Result<OfflineAutonomySpec>
+}
+
 interface DesignCoreAssembler {
     fun assemble(
         requirements: ResolvedRequirements,
@@ -81,6 +92,7 @@ interface DesignCoreAssembler {
         circuitGraph: CircuitGraph,
         behavior: BehaviorCompilation,
         validation: ValidationReport,
+        autonomy: OfflineAutonomySpec,
     ): Result<DesignCore>
 }
 
@@ -98,4 +110,21 @@ interface DiagramCompiler {
 
 interface DiagnosticCompiler {
     fun compile(core: DesignCore): Result<DiagnosticBundle>
+}
+
+interface SoftwareArchitectureCompiler {
+    fun compile(
+        requirements: ResolvedRequirements,
+        core: DesignCore,
+        ui: UiSpec,
+    ): Result<SoftwarePlan>
+}
+
+
+interface ProjectGraphCompiler {
+    fun compile(
+        core: DesignCore,
+        ui: UiSpec,
+        softwarePlan: SoftwarePlan,
+    ): Result<ProjectGraph>
 }

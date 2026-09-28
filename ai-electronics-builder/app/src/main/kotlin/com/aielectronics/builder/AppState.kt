@@ -2,13 +2,17 @@ package com.aielectronics.builder
 
 import com.aielectronics.application.SavedProjectSummary
 import com.aielectronics.ble.android.AndroidBleRuntimeConnection
+import com.aielectronics.core.model.ComponentResearchRecord
+import com.aielectronics.core.model.ComponentResearchRequest
 import com.aielectronics.core.model.MissingRequirement
+import com.aielectronics.application.SavedGraphNodePosition
 import com.aielectronics.core.model.ReleaseBundle
 import com.aielectronics.core.model.ResolvedRequirements
 
 enum class AppScreen {
     HOME,
     DESIGN,
+    GRAPH,
     PARTS,
     WIRING,
     BUILD,
@@ -47,4 +51,25 @@ data class BuilderAppState(
     val currentBuildStepIndex: Int = 0,
     val savedProjects: List<SavedProjectSummary> = emptyList(),
     val lastSavedAtEpochMs: Long? = null,
+    val bridgePairingCode: String = "",
+    val base44BridgeStatus: String = "",
+    val base44BridgeOnline: Boolean = false,
+    val bridgeLastSyncAtEpochMs: Long? = null,
+    val base44HandoffRevision: Int? = null,
+    val base44HandoffStatus: String = "",
+    val base44HandoffMessage: String = "",
+    val componentResearchActive: Boolean = false,
+    val componentResearchMessage: String = "",
+    val componentResearchRecords: List<ComponentResearchRecord> = emptyList(),
+    val pendingComponentResearchRequests:
+        List<ComponentResearchRequest> = emptyList(),
+    val componentReplacementTarget: String? = null,
+    val componentReplacementText: String = "",
+    val selectedGraphNodeId: String? = null,
+    val graphNodePositions: Map<String, SavedGraphNodePosition> = emptyMap(),
+    val graphLayoutUndoStack:
+        List<Map<String, SavedGraphNodePosition>> = emptyList(),
+    val graphLayoutRedoStack:
+        List<Map<String, SavedGraphNodePosition>> = emptyList(),
+    val revisionReturnScreen: AppScreen? = null,
 )

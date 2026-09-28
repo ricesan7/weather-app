@@ -128,3 +128,368 @@ export async function refineRevision(
   const structured = JSON.parse(extractOutputText(responseJson));
   return validateResult(structured);
 }
+
+
+const COMPONENT_RESEARCH_SCHEMA = {
+  type: "object",
+  additionalProperties: false,
+  properties: {
+    requested_name: { type: "string" },
+    manufacturer: { type: "string" },
+    model: { type: "string" },
+    display_name: { type: "string" },
+    kind: {
+      type: "string",
+      enum: [
+        "SENSOR",
+        "ACTUATOR",
+        "DRIVER",
+        "DISPLAY",
+        "POWER_SUPPLY",
+        "LEVEL_SHIFTER",
+        "STORAGE",
+        "OTHER"
+      ]
+    },
+    primary_interface: {
+      type: "string",
+      enum: [
+        "GPIO",
+        "I2C",
+        "SPI",
+        "UART",
+        "PWM",
+        "ADC",
+        "USB",
+        "ONE_WIRE",
+        "RS485",
+        "UNKNOWN"
+      ]
+    },
+    voltage_min_v: { type: ["number", "null"] },
+    voltage_typical_v: { type: ["number", "null"] },
+    voltage_max_v: { type: ["number", "null"] },
+    preferred_supply_v: { type: ["number", "null"] },
+    current_max_ma: { type: ["number", "null"] },
+    i2c_address: { type: "string" },
+    requires_external_power: { type: "boolean" },
+    driver_id: { type: "string" },
+    driver_profile: {
+      type: "object",
+      additionalProperties: false,
+      properties: {
+        family: {
+          type: "string",
+          enum: [
+            "GPIO_DIGITAL_INPUT",
+            "GPIO_DIGITAL_OUTPUT",
+            "DHT_PULSE_SENSOR",
+            "I2C_REGISTER_SENSOR",
+            "NONE"
+          ]
+        },
+        sample_interval_ms: { type: "integer" },
+        parameters: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              key: { type: "string" },
+              value: { type: "string" }
+            },
+            required: ["key", "value"]
+          }
+        },
+        telemetry: {
+          type: "array",
+          items: {
+            type: "object",
+            additionalProperties: false,
+            properties: {
+              id: { type: "string" },
+              unit: { type: "string" },
+              source: { type: "string" },
+              scale: { type: "number" },
+              offset: { type: "number" }
+            },
+            required: [
+              "id",
+              "unit",
+              "source",
+              "scale",
+              "offset"
+            ]
+          }
+        }
+      },
+      required: [
+        "family",
+        "sample_interval_ms",
+        "parameters",
+        "telemetry"
+      ]
+    },
+    capabilities: {
+      type: "array",
+      items: { type: "string" }
+    },
+    aliases: {
+      type: "array",
+      items: { type: "string" }
+    },
+    pins: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          label: { type: "string" },
+          role: {
+            type: "string",
+            enum: [
+              "VCC",
+              "GND",
+              "I2C_SDA",
+              "I2C_SCL",
+              "ADDRESS",
+              "CONTROL_INPUT",
+              "LOAD_OUTPUT",
+              "CLAMP_COMMON",
+              "POSITIVE",
+              "NEGATIVE",
+              "DATA",
+              "SIGNAL_INPUT",
+              "SIGNAL_OUTPUT"
+            ]
+          }
+        },
+        required: ["label", "role"]
+      }
+    },
+    sources: {
+      type: "array",
+      items: {
+        type: "object",
+        additionalProperties: false,
+        properties: {
+          url: { type: "string" },
+          title: { type: "string" },
+          authority: {
+            type: "string",
+            enum: [
+              "MANUFACTURER_DATASHEET",
+              "MANUFACTURER_PRODUCT_PAGE",
+              "AUTHORIZED_DISTRIBUTOR",
+              "OTHER"
+            ]
+          }
+        },
+        required: ["url", "title", "authority"]
+      }
+    },
+    confidence: { type: "number", minimum: 0, maximum: 1 },
+    notes: {
+      type: "array",
+      items: { type: "string" }
+    }
+  },
+  required: [
+    "requested_name",
+    "manufacturer",
+    "model",
+    "display_name",
+    "kind",
+    "primary_interface",
+    "voltage_min_v",
+    "voltage_typical_v",
+    "voltage_max_v",
+    "preferred_supply_v",
+    "current_max_ma",
+    "i2c_address",
+    "requires_external_power",
+    "driver_id",
+    "driver_profile",
+    "capabilities",
+    "aliases",
+    "pins",
+    "sources",
+    "confidence",
+    "notes"
+  ]
+};
+
+const COMPONENT_RESEARCH_INSTRUCTIONS = `
+You research electronic components for an engineering compiler.
+
+Search the web before answering.
+Prioritize evidence in this order:
+1. manufacturer datasheet;
+2. manufacturer product/documentation page;
+3. authorized distributor;
+4. other sources only for discovery, never as sole evidence for electrical ratings.
+
+Identify the exact manufacturer/model or module variant. Do not merge a bare IC/sensor
+with a breakout/module unless the evidence clearly matches the requested product.
+
+Never claim a part is electrically verified merely because a search result exists.
+Extract only values supported by the sources you actually used.
+If a value cannot be confirmed, return null or an empty string/list as appropriate.
+
+For mains-voltage, inverter, VFD, contactor, SSR, relay, industrial-drive, or other
+hazardous-energy components, extract facts but do not imply they are automatically safe
+for deployment.
+
+Capabilities are semantic strings such as measure_temperature, measure_humidity,
+display_visual, sense_button, actuate_fan, switch_load, communicate_rs485.
+
+driver_id must be empty unless a concrete compatible built-in runtime driver is known
+from the provided project context. Do not invent driver names.
+
+If no built-in driver is known, return a declarative driver_profile instead of source code.
+driver_profile.family must be one of GPIO_DIGITAL_INPUT, GPIO_DIGITAL_OUTPUT,
+DHT_PULSE_SENSOR, I2C_REGISTER_SENSOR, or NONE.
+
+For DHT11/DHT22, use primary_interface=ONE_WIRE and family=DHT_PULSE_SENSOR.
+Include parameters variant, start_low_us, zero_high_max_us, one_high_min_us from the
+manufacturer documentation. Include telemetry entries for temperature with
+source=DHT_TEMPERATURE and humidity with source=DHT_HUMIDITY.
+
+For a simple GPIO input, use family=GPIO_DIGITAL_INPUT and a telemetry entry with
+source=DIGITAL_STATE. If the protocol cannot be expressed by an allowed profile family,
+return family=NONE. Never return executable source code.
+
+Return Japanese-friendly display names where practical, but preserve exact model numbers.
+`.trim();
+
+export function buildComponentResearchRequest(
+  payload,
+  model = "gpt-5.6-luna"
+) {
+  return {
+    model,
+    store: false,
+    reasoning: { effort: "medium" },
+    max_output_tokens: 3000,
+    tools: [
+      {
+        type: "web_search",
+        search_context_size: "medium"
+      }
+    ],
+    instructions: COMPONENT_RESEARCH_INSTRUCTIONS,
+    input: [
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: JSON.stringify({
+              requested_name: String(payload.requested_name || ""),
+              category_hint: String(payload.category_hint || ""),
+              required_capabilities: Array.isArray(payload.required_capabilities)
+                ? payload.required_capabilities
+                : [],
+              project_goal: String(payload.project_goal || "")
+            })
+          }
+        ]
+      }
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "electronics_component_research",
+        description:
+          "Structured component facts researched from current web sources.",
+        strict: true,
+        schema: COMPONENT_RESEARCH_SCHEMA
+      }
+    }
+  };
+}
+
+export function extractWebSourceUrls(response) {
+  const urls = new Set();
+  for (const item of response?.output || []) {
+    if (item?.type !== "web_search_call") continue;
+    const action = item.action || {};
+    for (const source of action.sources || []) {
+      if (source?.type === "url" && typeof source.url === "string") {
+        urls.add(source.url);
+      }
+    }
+    if (typeof action.url === "string") urls.add(action.url);
+  }
+  return urls;
+}
+
+function validateComponentResearchResult(value, actualSourceUrls) {
+  if (
+    !value ||
+    typeof value.requested_name !== "string" ||
+    typeof value.display_name !== "string" ||
+    !Array.isArray(value.sources) ||
+    !Array.isArray(value.pins) ||
+    !Array.isArray(value.capabilities)
+  ) {
+    throw new Error(
+      "OpenAI component research output did not match the gateway contract"
+    );
+  }
+
+  const allowedSources = value.sources.filter(
+    (source) =>
+      typeof source?.url === "string" &&
+      actualSourceUrls.has(source.url)
+  );
+
+  return {
+    ...value,
+    sources: allowedSources,
+    evidence_complete:
+      allowedSources.some((source) =>
+        source.authority === "MANUFACTURER_DATASHEET" ||
+        source.authority === "MANUFACTURER_PRODUCT_PAGE"
+      )
+  };
+}
+
+export async function researchComponent(
+  payload,
+  {
+    apiKey = process.env.OPENAI_API_KEY,
+    model = process.env.OPENAI_MODEL || "gpt-5.6-luna",
+    fetchImpl = fetch
+  } = {}
+) {
+  if (!apiKey) throw new Error("OPENAI_API_KEY is not configured");
+
+  const request = buildComponentResearchRequest(payload, model);
+  const response = await fetchImpl(
+    "https://api.openai.com/v1/responses",
+    {
+      method: "POST",
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(request)
+    }
+  );
+
+  const raw = await response.text();
+  if (!response.ok) {
+    throw new Error(
+      `OpenAI component research failed with HTTP ${response.status}: ${raw.slice(0, 500)}`
+    );
+  }
+
+  const responseJson = JSON.parse(raw);
+  const structured = JSON.parse(extractOutputText(responseJson));
+  const actualSourceUrls = extractWebSourceUrls(responseJson);
+  return validateComponentResearchResult(
+    structured,
+    actualSourceUrls
+  );
+}

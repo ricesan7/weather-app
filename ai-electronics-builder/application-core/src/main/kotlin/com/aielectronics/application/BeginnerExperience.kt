@@ -45,6 +45,10 @@ object BeginnerErrorPresenter {
             "配線設計を完成できませんでした。"
         "behavior_compile" ->
             "指定された動作条件を安全な制御ルールに変換できませんでした。"
+        "offline_autonomy_compile" ->
+            "装置単体で動かす範囲と、スマホ等が必要な範囲を安全に確定できませんでした。"
+        "software_architecture_compile" ->
+            "スマホソフトと装置をつなぐ通信仕様を完成できませんでした。"
         else ->
             "設計を完成できませんでした。条件を少し変えてもう一度試してください。"
     }
@@ -70,6 +74,22 @@ object DesignExplanationBuilder {
 
         if (bundle.designIr.settings.any { it.mutableAtRuntime }) {
             add("しきい値や動作モードは装置を書き直さず、完成後もスマホから変更できます。")
+        }
+
+        when (bundle.designIr.autonomy.coreOperationMode) {
+            com.aielectronics.core.model.CoreOperationMode.AUTONOMOUS_MCU -> add(
+                "AndroidやBase44が切断されても、通常制御・安全処理・保存済み設定はマイコン単体で継続する設計です。"
+            )
+            com.aielectronics.core.model.CoreOperationMode.EXTERNAL_INPUT_REQUIRED -> add(
+                "このプロジェクトは外部入力が中核機能に必要ですが、安全処理はマイコン側で独立して実行します。理由: " +
+                    bundle.designIr.autonomy.externalInputReason.orEmpty()
+            )
+        }
+
+        if (bundle.softwarePlan.base44DesignRequired) {
+            add(
+                "スマホ用ソフトはBase44で設計し、実機制御はAndroid Hardware Bridgeを経由する構成にしています。"
+            )
         }
     }
 }

@@ -7,6 +7,7 @@ import android.database.sqlite.SQLiteOpenHelper
 import com.aielectronics.application.ProjectRepository
 import com.aielectronics.application.SavedProject
 import com.aielectronics.application.SavedProjectSummary
+import com.aielectronics.application.SavedGraphNodePosition
 import org.json.JSONArray
 import org.json.JSONObject
 
@@ -32,7 +33,8 @@ class SqliteProjectRepository(
                 last_screen TEXT NOT NULL,
                 deployed INTEGER NOT NULL,
                 created_at INTEGER NOT NULL,
-                updated_at INTEGER NOT NULL
+                updated_at INTEGER NOT NULL,
+                graph_positions_json TEXT NOT NULL DEFAULT '{}'
             )
             """.trimIndent()
         )
@@ -48,6 +50,13 @@ class SqliteProjectRepository(
     ) {
         if (oldVersion < 1) {
             onCreate(db)
+            return
+        }
+        if (oldVersion < 2) {
+            db.execSQL(
+                "ALTER TABLE projects ADD COLUMN graph_positions_json " +
+                    "TEXT NOT NULL DEFAULT '{}'"
+            )
         }
     }
 
@@ -141,6 +150,11 @@ class SqliteProjectRepository(
                 updatedAtEpochMs = cursor.getLong(
                     cursor.getColumnIndexOrThrow("updated_at")
                 ),
+                graphNodePositions = decodeGraphPositions(
+                    cursor.getString(
+                        cursor.getColumnIndexOrThrow("graph_positions_json")
+                    )
+                ),
             )
         }
     }
@@ -161,6 +175,10 @@ class SqliteProjectRepository(
             put("deployed", if (project.deployed) 1 else 0)
             put("created_at", project.createdAtEpochMs)
             put("updated_at", project.updatedAtEpochMs)
+            put(
+                "graph_positions_json",
+                encodeGraphPositions(project.graphNodePositions),
+            )
         }
 
         writableDatabase.insertWithOnConflict(
@@ -203,6 +221,41 @@ class SqliteProjectRepository(
         return result
     }
 
+    private fun encodeGraphPositions(
+        values: Map<String, SavedGraphNodePosition>,
+    ): String {
+        val json = JSONObject()
+        values.toSortedMap().forEach { (nodeId, position) ->
+            json.put(
+                nodeId,
+                JSONObject().apply {
+                    put("x", position.x)
+                    put("y", position.y)
+                }
+            )
+        }
+        return json.toString()
+    }
+
+    private fun decodeGraphPositions(
+        json: String?,
+    ): Map<String, SavedGraphNodePosition> {
+        if (json.isNullOrBlank()) return emptyMap()
+        val objectValue = JSONObject(json)
+        val result = linkedMapOf<String, SavedGraphNodePosition>()
+        val keys = objectValue.keys()
+
+        while (keys.hasNext()) {
+            val nodeId = keys.next()
+            val position = objectValue.optJSONObject(nodeId) ?: continue
+            result[nodeId] = SavedGraphNodePosition(
+                x = position.optDouble("x", 0.5).coerceIn(0.0, 1.0),
+                y = position.optDouble("y", 0.5).coerceIn(0.0, 1.0),
+            )
+        }
+        return result
+    }
+
     private fun encodeSet(values: Set<String>): String {
         val array = JSONArray()
         values.sorted().forEach(array::put)
@@ -220,6 +273,6 @@ class SqliteProjectRepository(
 
     private companion object {
         const val DATABASE_NAME = "ai_electronics_projects.db"
-        const val DATABASE_VERSION = 1
+        const val DATABASE_VERSION = 2
     }
 }

@@ -49,6 +49,31 @@ struct TestSpec {
     bool required = false;
 };
 
+struct AutonomySpec {
+    std::string coreOperationMode = "AUTONOMOUS_MCU";
+    bool localBehaviorExecutionRequired = true;
+    bool localSafetyExecutionRequired = true;
+    bool persistRuntimeSettings = true;
+    std::string externalInputReason;
+};
+
+struct DriverTelemetrySpec {
+    std::string id;
+    std::string unit;
+    std::string source;
+    double scale = 1.0;
+    double offset = 0.0;
+};
+
+struct DriverProfileSpec {
+    std::string driverId;
+    std::string family;
+    std::string interfaceType;
+    int sampleIntervalMs = 1000;
+    std::unordered_map<std::string, std::string> parameters;
+    std::vector<DriverTelemetrySpec> telemetry;
+};
+
 struct DeviceSpec {
     std::string instanceId;
     std::string driverId;
@@ -60,7 +85,9 @@ struct Manifest {
     std::string projectId;
     std::string boardId;
     std::string minimumRuntimeVersion;
+    AutonomySpec autonomy;
     std::vector<std::string> drivers;
+    std::vector<DriverProfileSpec> driverProfiles;
     std::vector<SettingSpec> settings;
     std::vector<RuleSpec> rules;
     std::vector<FailsafeSpec> failsafe;

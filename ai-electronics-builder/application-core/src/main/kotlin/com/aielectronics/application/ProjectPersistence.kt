@@ -1,5 +1,10 @@
 package com.aielectronics.application
 
+data class SavedGraphNodePosition(
+    val x: Double,
+    val y: Double,
+)
+
 data class SavedProject(
     val id: String,
     val title: String,
@@ -11,6 +16,7 @@ data class SavedProject(
     val deployed: Boolean,
     val createdAtEpochMs: Long,
     val updatedAtEpochMs: Long,
+    val graphNodePositions: Map<String, SavedGraphNodePosition> = emptyMap(),
 )
 
 data class SavedProjectSummary(

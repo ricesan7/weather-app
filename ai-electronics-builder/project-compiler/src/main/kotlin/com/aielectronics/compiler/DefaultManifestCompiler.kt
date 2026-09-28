@@ -5,16 +5,30 @@ import com.aielectronics.parts.EngineeringCatalog
 
 class DefaultManifestCompiler(
     private val catalog: EngineeringCatalog,
-    private val minimumRuntimeVersion: String = "0.1.0",
+    private val minimumRuntimeVersion: String = "0.2.0",
 ) : ManifestCompiler {
 
     override fun compile(core: DesignCore): Result<ProjectManifest> = runCatching {
         val drivers = linkedSetOf<String>()
+        val driverProfiles =
+            linkedMapOf<String, RuntimeDriverProfile>()
         val devices = mutableListOf<ManifestDevice>()
+        val boardSpec =
+            catalog.board(core.board.boardId)
+                ?: error(
+                    "Board spec missing: " +
+                        core.board.boardId
+                )
 
         core.components.forEach { instance ->
             val spec = catalog.component(instance.componentId)
                 ?: error("Component spec missing: " + instance.componentId)
+
+            spec.runtimeDriverProfile
+                ?.takeIf { it.runtimeReady }
+                ?.let { profile ->
+                    driverProfiles[profile.driverId] = profile
+                }
 
             val driverId = spec.driverId ?: when (spec.kind) {
                 ComponentKind.ACTUATOR -> "drv_binary_output"
@@ -41,6 +55,16 @@ class DefaultManifestCompiler(
                         }
                         if (boardEndpoint != null) {
                             config["board_pin"] = boardEndpoint.pinId
+                            boardSpec.pins
+                                .firstOrNull {
+                                    it.pinId ==
+                                        boardEndpoint.pinId
+                                }
+                                ?.gpioNumber
+                                ?.let {
+                                    config["gpio"] =
+                                        it.toString()
+                                }
                         }
                     }
 
@@ -71,7 +95,15 @@ class DefaultManifestCompiler(
             failsafe = core.behavior.failsafe,
             telemetryIds = telemetry,
             tests = tests,
-            minimumRuntimeVersion = minimumRuntimeVersion,
+            minimumRuntimeVersion =
+                if (driverProfiles.isNotEmpty()) {
+                    "0.3.0"
+                } else {
+                    minimumRuntimeVersion
+                },
+            autonomy = core.autonomy,
+            driverProfiles =
+                driverProfiles.values.toList(),
         )
     }
 
