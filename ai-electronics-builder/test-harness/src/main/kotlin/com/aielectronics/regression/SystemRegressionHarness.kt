@@ -252,6 +252,13 @@ class SystemRegressionHarness(
                             compile.questions.map { it.slotId }.toSet(),
                         )
 
+                    is CompileResult.NeedComponentResearch ->
+                        RegressionOutcome.Failed(
+                            fixture = fixture,
+                            stage = "component_research",
+                            reason = compile.capabilities.joinToString { it.value },
+                        )
+
                     is CompileResult.Blocked ->
                         RegressionOutcome.Failed(
                             fixture = fixture,
