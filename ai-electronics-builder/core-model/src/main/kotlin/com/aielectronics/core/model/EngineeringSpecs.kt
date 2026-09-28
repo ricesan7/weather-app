@@ -8,6 +8,8 @@ enum class ElectricalInterface {
     PWM,
     ADC,
     USB,
+    ONE_WIRE,
+    RS485,
 }
 
 enum class ComponentKind {
@@ -48,6 +50,9 @@ enum class ComponentPinRole {
     CLAMP_COMMON,
     POSITIVE,
     NEGATIVE,
+    DATA,
+    SIGNAL_INPUT,
+    SIGNAL_OUTPUT,
 }
 
 data class VoltageRange(
