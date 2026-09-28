@@ -31,6 +31,18 @@ class CatalogResolutionTest {
         )
     }
 
+
+    @Test
+    fun `uncovered hardware capability is reported with a typed exception`() {
+        val failure = CatalogComponentResolver(catalog).resolve(
+            CapabilitySet(setOf(CapabilityId("measure_light"))),
+            requirements(),
+        ).exceptionOrNull()
+
+        val unresolved = kotlin.test.assertIs<UnresolvedHardwareCapabilitiesException>(failure)
+        assertEquals(setOf(CapabilityId("measure_light")), unresolved.capabilities)
+    }
+
     @Test
     fun `board selector chooses XIAO for beginner BLE design`() {
         val components = resolvedComponents()
