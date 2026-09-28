@@ -48,6 +48,43 @@ class DefaultProjectCompilerTest {
         assertEquals(false, behaviorCalled)
     }
 
+
+    @Test
+    fun `compiler returns component research need for typed unresolved capabilities`() {
+        val missing = setOf(CapabilityId("measure_light"))
+        val resolver = object : ComponentResolver {
+            override fun resolve(
+                capabilities: CapabilitySet,
+                requirements: ResolvedRequirements,
+            ) = Result.failure<ResolvedComponents>(
+                UnresolvedHardwareCapabilitiesException(missing)
+            )
+        }
+
+        val result = compiler(componentResolver = resolver).compile(requirements())
+
+        val need = assertIs<CompileResult.NeedComponentResearch>(result)
+        assertEquals(missing, need.capabilities)
+    }
+
+    @Test
+    fun `compiler keeps unrelated component resolution failures as failed`() {
+        val resolver = object : ComponentResolver {
+            override fun resolve(
+                capabilities: CapabilitySet,
+                requirements: ResolvedRequirements,
+            ) = Result.failure<ResolvedComponents>(
+                IllegalStateException("catalog corrupted")
+            )
+        }
+
+        val result = compiler(componentResolver = resolver).compile(requirements())
+
+        val failed = assertIs<CompileResult.Failed>(result)
+        assertEquals("component_resolve", failed.error.stage)
+        assertEquals("catalog corrupted", failed.error.message)
+    }
+
     @Test
     fun `successful pipeline returns one consistent release bundle`() {
         val compiler = compiler()
@@ -85,6 +122,7 @@ class DefaultProjectCompilerTest {
                     )
                 )
         },
+        componentResolver: ComponentResolver? = null,
     ): DefaultProjectCompiler {
         val board = BoardSelection("xiao_esp32s3", setOf(TransportKind.BLE))
         val components = ResolvedComponents(
@@ -100,7 +138,7 @@ class DefaultProjectCompilerTest {
                 override fun map(requirements: ResolvedRequirements) =
                     CapabilitySet(setOf(CapabilityId("monitor")))
             },
-            componentResolver = object : ComponentResolver {
+            componentResolver = componentResolver ?: object : ComponentResolver {
                 override fun resolve(
                     capabilities: CapabilitySet,
                     requirements: ResolvedRequirements,
