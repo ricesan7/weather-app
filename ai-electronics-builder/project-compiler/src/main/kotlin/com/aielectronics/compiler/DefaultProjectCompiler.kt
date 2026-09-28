@@ -27,7 +27,12 @@ class DefaultProjectCompiler(
         val capabilities = capabilityMapper.map(requirements)
 
         val components = componentResolver.resolve(capabilities, requirements)
-            .getOrElse { return failed("component_resolve", it) }
+            .getOrElse { failure ->
+                if (failure is UnresolvedHardwareCapabilitiesException) {
+                    return CompileResult.NeedComponentResearch(failure.capabilities)
+                }
+                return failed("component_resolve", failure)
+            }
 
         val board = boardSelector.select(capabilities, components, requirements)
             .getOrElse { return failed("board_select", it) }
