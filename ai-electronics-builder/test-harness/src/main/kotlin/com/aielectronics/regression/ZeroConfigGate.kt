@@ -73,6 +73,11 @@ class ZeroConfigGate(
             is CompileResult.Success -> compile.bundle
             is CompileResult.NeedUserInput ->
                 error("Compiler unexpectedly asked user input")
+            is CompileResult.NeedComponentResearch ->
+                error(
+                    "Golden flow unexpectedly requires component research: " +
+                        compile.capabilities.joinToString { it.value }
+                )
             is CompileResult.Blocked ->
                 error("Golden flow blocked by validation")
             is CompileResult.Failed ->
