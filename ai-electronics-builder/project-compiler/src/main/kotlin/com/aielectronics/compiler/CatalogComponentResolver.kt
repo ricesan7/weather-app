@@ -29,10 +29,7 @@ class CatalogComponentResolver(
                         .thenBy { it.first.componentId }
                 )
                 .firstOrNull()
-                ?: error(
-                    "No design-ready component covers: " +
-                        uncovered.joinToString { it.value }
-                )
+                ?: throw UnresolvedHardwareCapabilitiesException(uncovered.toSet())
 
             addWithDependencies(candidate.first, selected)
             uncovered.removeAll(candidate.second)
