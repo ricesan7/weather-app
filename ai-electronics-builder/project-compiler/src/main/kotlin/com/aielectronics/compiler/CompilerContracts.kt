@@ -5,11 +5,19 @@ import com.aielectronics.core.model.*
 sealed interface CompileResult {
     data class Success(val bundle: ReleaseBundle) : CompileResult
     data class NeedUserInput(val questions: List<MissingRequirement>) : CompileResult
+    data class NeedComponentResearch(val capabilities: Set<CapabilityId>) : CompileResult
     data class Blocked(val report: ValidationReport) : CompileResult
     data class Failed(val error: CompileFailure) : CompileResult
 }
 
 data class CompileFailure(val stage: String, val message: String, val causeCode: String? = null)
+
+class UnresolvedHardwareCapabilitiesException(
+    val capabilities: Set<CapabilityId>,
+) : IllegalStateException(
+    "No design-ready component covers: " +
+        capabilities.sortedBy { it.value }.joinToString { it.value }
+)
 
 interface ProjectCompiler {
     fun compile(requirements: ResolvedRequirements): CompileResult
