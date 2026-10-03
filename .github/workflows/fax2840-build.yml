@@ -61,6 +61,9 @@ jobs:
       - name: Regression test - v1.3 USB connection guide
         run: python3 Fax2840UsbPrint/tests/test_v13_usb_connection_guide.py
 
+      - name: Regression test - v1.3.1 auto layout scaling
+        run: python3 Fax2840UsbPrint/tests/test_v131_auto_layout.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
