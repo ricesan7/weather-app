@@ -29,8 +29,12 @@ final class BrotherHbpPrinter {
     private static final int AUTO_SCAN_MAX_PX = 1024;
     private static final int AUTO_WHITE_THRESHOLD = 246;
     private static final int AUTO_SCAN_PADDING_PX = 6;
-    private static final float AUTO_TARGET_SEGMENT_ASPECT = 3.6f;
-    private static final int AUTO_MAX_COLUMNS = 4;
+    private static final float PDF_POINTS_PER_INCH = 72f;
+    private static final float PRINTER_DPI = 600f;
+    private static final float PRINTABLE_WIDTH_PT =
+            PRINTABLE_WIDTH_PX * PDF_POINTS_PER_INCH / PRINTER_DPI;
+    private static final float PRINTABLE_HEIGHT_PT =
+            PRINTABLE_HEIGHT_PX * PDF_POINTS_PER_INCH / PRINTER_DPI;
 
     private static final int[][] BAYER_8X8 = {
             { 0,48,12,60, 3,51,15,63},
@@ -88,23 +92,34 @@ final class BrotherHbpPrinter {
                     if (splitMode == PageSplitSettings.MODE_FIT_PAGE) {
                         pageStarted = true;
                         event(sink, "page " + (pageIndex + 1) + ": fit-page");
-                        writeRasterPage(page, transport, cancelled, sink, density);
+                        writeRasterPage(page, transport, cancelled, sink, density, false);
                     } else {
                         ContentBounds bounds = detectContentBounds(page, sink);
-                        int tileCols = columnsForMode(splitMode, bounds);
-                        int tileRows = 1;
-                        event(sink, "page " + (pageIndex + 1)
-                                + ": content split tileCols=" + tileCols
-                                + " tileRows=" + tileRows);
+                        int tileCols = columnsForMode(
+                                splitMode, bounds, page.getWidth(), page.getHeight());
+                        boolean preserveFullPage =
+                                splitMode == PageSplitSettings.MODE_AUTO_CONTENT && tileCols == 1;
 
-                        for (int tileCol = 0; tileCol < tileCols; tileCol++) {
-                            checkCancelled(cancelled);
+                        if (preserveFullPage) {
                             pageStarted = true;
-                            ContentBounds segment = bounds.horizontalSegment(tileCol, tileCols);
                             event(sink, "page " + (pageIndex + 1)
-                                    + ": tile " + (tileCol + 1) + "/" + tileCols
-                                    + " src=" + segment.describe());
-                            writeCroppedTile(page, segment, transport, cancelled, sink, density);
+                                    + ": auto preserve-full-page");
+                            writeRasterPage(page, transport, cancelled, sink, density, true);
+                        } else {
+                            int tileRows = 1;
+                            event(sink, "page " + (pageIndex + 1)
+                                    + ": content split tileCols=" + tileCols
+                                    + " tileRows=" + tileRows);
+
+                            for (int tileCol = 0; tileCol < tileCols; tileCol++) {
+                                checkCancelled(cancelled);
+                                pageStarted = true;
+                                ContentBounds segment = bounds.horizontalSegment(tileCol, tileCols);
+                                event(sink, "page " + (pageIndex + 1)
+                                        + ": tile " + (tileCol + 1) + "/" + tileCols
+                                        + " src=" + segment.describe());
+                                writeCroppedTile(page, segment, transport, cancelled, sink, density);
+                            }
                         }
                     }
                 }
@@ -194,7 +209,8 @@ final class BrotherHbpPrinter {
     }
 
     private static void writeRasterPage(PdfRenderer.Page page, Fax2840Usb transport,
-                                        CancelCheck cancelled, DiagnosticSink sink, int density) throws IOException {
+                                        CancelCheck cancelled, DiagnosticSink sink, int density,
+                                        boolean preventUpscale) throws IOException {
         transport.writeAscii("\033*b1030m");
         HbpCodec.BlockWriter block = new HbpCodec.BlockWriter(transport);
         int pageWidth = page.getWidth();
@@ -214,7 +230,8 @@ final class BrotherHbpPrinter {
             Bitmap bitmap = Bitmap.createBitmap(A4_WIDTH_PX, stripeHeight, Bitmap.Config.ARGB_8888);
             bitmap.eraseColor(Color.WHITE);
 
-            page.render(bitmap, null, pageToStripeMatrix(pageWidth, pageHeight, startY),
+            page.render(bitmap, null,
+                    pageToStripeMatrix(pageWidth, pageHeight, startY, preventUpscale),
                     PdfRenderer.Page.RENDER_MODE_FOR_PRINT);
 
             rasterizeStripe(bitmap, startY, lineBytes, block, density);
@@ -378,7 +395,8 @@ final class BrotherHbpPrinter {
         return result;
     }
 
-    private static int columnsForMode(int splitMode, ContentBounds bounds) {
+    private static int columnsForMode(int splitMode, ContentBounds bounds,
+                                      float pageWidth, float pageHeight) {
         switch (splitMode) {
             case PageSplitSettings.MODE_HORIZONTAL_2:
                 return 2;
@@ -388,19 +406,27 @@ final class BrotherHbpPrinter {
                 return 4;
             case PageSplitSettings.MODE_AUTO_CONTENT:
             default:
-                float aspect = bounds.width() / Math.max(1f, bounds.height());
-                int auto = (int)Math.ceil(aspect / AUTO_TARGET_SEGMENT_ASPECT);
-                return Math.max(1, Math.min(AUTO_MAX_COLUMNS, auto));
+                float targetWidthPt = pageWidth > pageHeight
+                        ? PRINTABLE_HEIGHT_PT : PRINTABLE_WIDTH_PT;
+                return AutoPageLayout.columnsForAuto(
+                        pageWidth, pageHeight,
+                        bounds.width(), bounds.height(),
+                        targetWidthPt);
         }
     }
 
-    private static Matrix pageToStripeMatrix(int pdfWidth, int pdfHeight, int startY) {
+    private static Matrix pageToStripeMatrix(int pdfWidth, int pdfHeight, int startY,
+                                             boolean preventUpscale) {
         Matrix matrix = new Matrix();
+        float nativeScale = PRINTER_DPI / PDF_POINTS_PER_INCH;
 
         if (pdfWidth <= pdfHeight) {
             float scale = Math.min(
                     PRINTABLE_WIDTH_PX / (float)pdfWidth,
                     PRINTABLE_HEIGHT_PX / (float)pdfHeight);
+            if (preventUpscale) {
+                scale = AutoPageLayout.limitUpscale(scale, nativeScale);
+            }
             float renderedWidth = pdfWidth * scale;
             float renderedHeight = pdfHeight * scale;
             float dx = PRINTABLE_MARGIN_PX + (PRINTABLE_WIDTH_PX - renderedWidth) / 2f;
@@ -415,6 +441,9 @@ final class BrotherHbpPrinter {
             float scale = Math.min(
                     PRINTABLE_WIDTH_PX / (float)pdfHeight,
                     PRINTABLE_HEIGHT_PX / (float)pdfWidth);
+            if (preventUpscale) {
+                scale = AutoPageLayout.limitUpscale(scale, nativeScale);
+            }
             float renderedWidth = pdfHeight * scale;
             float renderedHeight = pdfWidth * scale;
             float dx = PRINTABLE_MARGIN_PX + (PRINTABLE_WIDTH_PX - renderedWidth) / 2f;

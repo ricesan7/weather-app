@@ -28,9 +28,6 @@ final class SplitPdfGenerator {
     private static final int AUTO_SCAN_MAX_PX = 1024;
     private static final int AUTO_WHITE_THRESHOLD = 246;
     private static final int AUTO_SCAN_PADDING_PX = 6;
-    private static final float AUTO_TARGET_SEGMENT_ASPECT = 3.6f;
-    private static final int AUTO_MAX_COLUMNS = 4;
-    private static final float AUTO_LANDSCAPE_ASPECT = 1.12f;
 
     static final class Result {
         final File file;
@@ -79,17 +76,31 @@ final class SplitPdfGenerator {
 
             for (int pageIndex = 0; pageIndex < renderer.getPageCount(); pageIndex++) {
                 try (PdfRenderer.Page page = renderer.openPage(pageIndex)) {
-                    ContentBounds bounds = splitMode == PageSplitSettings.MODE_FIT_PAGE
-                            ? new ContentBounds(0f, 0f, page.getWidth(), page.getHeight())
+                    ContentBounds fullPage = new ContentBounds(
+                            0f, 0f, page.getWidth(), page.getHeight());
+                    ContentBounds detectedBounds = splitMode == PageSplitSettings.MODE_FIT_PAGE
+                            ? fullPage
                             : detectContentBounds(page);
 
-                    int columns = columnsForMode(splitMode, bounds);
+                    int columns = columnsForMode(
+                            splitMode, detectedBounds,
+                            page.getWidth(), page.getHeight(), pageWidthPt);
+                    boolean preserveFullPage =
+                            splitMode == PageSplitSettings.MODE_AUTO_CONTENT && columns == 1;
+                    ContentBounds renderBounds =
+                            splitMode == PageSplitSettings.MODE_FIT_PAGE || preserveFullPage
+                                    ? fullPage : detectedBounds;
+
                     for (int col = 0; col < columns; col++) {
                         ContentBounds segment = columns == 1
-                                ? bounds
-                                : bounds.horizontalSegment(col, columns);
+                                ? renderBounds
+                                : renderBounds.horizontalSegment(col, columns);
 
-                        Bitmap bitmap = renderSegment(page, segment, outputWidthPx, outputHeightPx);
+                        Bitmap bitmap = renderSegment(
+                                page, segment,
+                                outputWidthPx, outputHeightPx,
+                                pageWidthPt, pageHeightPt,
+                                preserveFullPage);
                         PdfDocument.PageInfo pageInfo = new PdfDocument.PageInfo.Builder(
                                 pageWidthPt, pageHeightPt, ++outputPages).create();
                         PdfDocument.Page outPage = document.startPage(pageInfo);
@@ -123,20 +134,53 @@ final class SplitPdfGenerator {
         }
 
         try (PdfRenderer.Page page = renderer.openPage(0)) {
-            ContentBounds bounds = splitMode == PageSplitSettings.MODE_FIT_PAGE
-                    ? new ContentBounds(0f, 0f, page.getWidth(), page.getHeight())
-                    : detectContentBounds(page);
-            int columns = columnsForMode(splitMode, bounds);
+            int pageWidth = page.getWidth();
+            int pageHeight = page.getHeight();
+
+            if (splitMode == PageSplitSettings.MODE_FIT_PAGE) {
+                return pageWidth > pageHeight
+                        ? PrintOrientationSettings.MODE_LANDSCAPE
+                        : PrintOrientationSettings.MODE_PORTRAIT;
+            }
+
+            ContentBounds bounds = detectContentBounds(page);
+
+            if (splitMode == PageSplitSettings.MODE_AUTO_CONTENT) {
+                boolean sourceLandscape = pageWidth > pageHeight;
+                float targetWidth = sourceLandscape
+                        ? A4_LANDSCAPE_WIDTH_PT : A4_PORTRAIT_WIDTH_PT;
+                int columns = AutoPageLayout.columnsForAuto(
+                        pageWidth, pageHeight, bounds.width(), bounds.height(), targetWidth);
+
+                boolean landscape = AutoPageLayout.shouldUseLandscape(
+                        pageWidth, pageHeight, bounds.width(), bounds.height(), columns);
+                targetWidth = landscape ? A4_LANDSCAPE_WIDTH_PT : A4_PORTRAIT_WIDTH_PT;
+                columns = AutoPageLayout.columnsForAuto(
+                        pageWidth, pageHeight, bounds.width(), bounds.height(), targetWidth);
+                landscape = AutoPageLayout.shouldUseLandscape(
+                        pageWidth, pageHeight, bounds.width(), bounds.height(), columns);
+
+                return landscape
+                        ? PrintOrientationSettings.MODE_LANDSCAPE
+                        : PrintOrientationSettings.MODE_PORTRAIT;
+            }
+
+            int columns = columnsForMode(
+                    splitMode, bounds, pageWidth, pageHeight,
+                    pageWidth > pageHeight
+                            ? A4_LANDSCAPE_WIDTH_PT : A4_PORTRAIT_WIDTH_PT);
             float segmentWidth = bounds.width() / Math.max(1, columns);
             float segmentAspect = segmentWidth / Math.max(1f, bounds.height());
-            return segmentAspect >= AUTO_LANDSCAPE_ASPECT
+            return segmentAspect >= 1.12f
                     ? PrintOrientationSettings.MODE_LANDSCAPE
                     : PrintOrientationSettings.MODE_PORTRAIT;
         }
     }
 
     private static Bitmap renderSegment(PdfRenderer.Page page, ContentBounds source,
-                                        int outputWidthPx, int outputHeightPx) {
+                                        int outputWidthPx, int outputHeightPx,
+                                        int pageWidthPt, int pageHeightPt,
+                                        boolean preventUpscale) {
         Bitmap bitmap = Bitmap.createBitmap(
                 outputWidthPx, outputHeightPx, Bitmap.Config.ARGB_8888);
         bitmap.eraseColor(Color.WHITE);
@@ -144,6 +188,12 @@ final class SplitPdfGenerator {
         float scale = Math.min(
                 outputWidthPx / source.width(),
                 outputHeightPx / source.height());
+        if (preventUpscale) {
+            float nativeScale = Math.min(
+                    outputWidthPx / (float)Math.max(1, pageWidthPt),
+                    outputHeightPx / (float)Math.max(1, pageHeightPt));
+            scale = AutoPageLayout.limitUpscale(scale, nativeScale);
+        }
         float renderedWidth = source.width() * scale;
         float renderedHeight = source.height() * scale;
         float dx = (outputWidthPx - renderedWidth) / 2f;
@@ -215,7 +265,9 @@ final class SplitPdfGenerator {
                 (maxY + 1) * pageHeight / (float)scanHeight);
     }
 
-    private static int columnsForMode(int splitMode, ContentBounds bounds) {
+    private static int columnsForMode(int splitMode, ContentBounds bounds,
+                                      float pageWidth, float pageHeight,
+                                      float targetWidthPt) {
         switch (splitMode) {
             case PageSplitSettings.MODE_HORIZONTAL_2:
                 return 2;
@@ -224,9 +276,10 @@ final class SplitPdfGenerator {
             case PageSplitSettings.MODE_HORIZONTAL_4:
                 return 4;
             case PageSplitSettings.MODE_AUTO_CONTENT:
-                float aspect = bounds.width() / Math.max(1f, bounds.height());
-                int auto = (int)Math.ceil(aspect / AUTO_TARGET_SEGMENT_ASPECT);
-                return Math.max(1, Math.min(AUTO_MAX_COLUMNS, auto));
+                return AutoPageLayout.columnsForAuto(
+                        pageWidth, pageHeight,
+                        bounds.width(), bounds.height(),
+                        targetWidthPt);
             case PageSplitSettings.MODE_FIT_PAGE:
             default:
                 return 1;
