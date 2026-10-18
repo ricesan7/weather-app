@@ -6,10 +6,12 @@ import com.aielectronics.runtime.RuntimeTransport
 
 data class RuntimeCapabilities(
     val protocolVersion: Int,
+    val runtimeVersion: String? = null,
     val manifest: Boolean,
     val settings: Boolean,
     val selfTest: Boolean,
     val telemetry: Boolean,
+    val driverProfileFamilies: Set<String> = emptySet(),
 )
 
 class BleRuntimeSession(
@@ -32,10 +34,19 @@ class BleRuntimeSession(
             protocolVersion = response.fields["protocol_version"]
                 ?.toIntOrNull()
                 ?: response.protocolVersion,
+            runtimeVersion =
+                response.fields["runtime_version"],
             manifest = response.fields["manifest"] == "true",
             settings = response.fields["settings"] == "true",
             selfTest = response.fields["self_test"] == "true",
             telemetry = response.fields["telemetry"] == "true",
+            driverProfileFamilies =
+                response.fields["driver_profile_families"]
+                    .orEmpty()
+                    .split(",")
+                    .map(String::trim)
+                    .filter(String::isNotBlank)
+                    .toSet(),
         )
     }
 }

@@ -15,6 +15,10 @@ val aiGatewayToken = providers.gradleProperty("AI_GATEWAY_TOKEN")
     .orElse(providers.environmentVariable("AI_GATEWAY_TOKEN"))
     .orElse("")
     .get()
+val base44BridgeUrl = providers.gradleProperty("BASE44_BRIDGE_URL")
+    .orElse(providers.environmentVariable("BASE44_BRIDGE_URL"))
+    .orElse("https://base44.app/api/apps/6ab8775b4a181f8a3257001f/functions/hardwareBridge")
+    .get()
 
 android {
     namespace = "com.aielectronics.builder"
@@ -29,6 +33,7 @@ android {
 
         buildConfigField("String", "AI_GATEWAY_URL", buildConfigString(aiGatewayUrl))
         buildConfigField("String", "AI_GATEWAY_TOKEN", buildConfigString(aiGatewayToken))
+        buildConfigField("String", "BASE44_BRIDGE_URL", buildConfigString(base44BridgeUrl))
     }
 
     buildFeatures {
@@ -68,6 +73,7 @@ dependencies {
     val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
     implementation(composeBom)
     implementation("androidx.activity:activity-compose:1.10.0")
+    implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.compose.ui:ui")
     implementation("androidx.compose.foundation:foundation")
     implementation("androidx.compose.material3:material3")
@@ -76,4 +82,5 @@ dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.9.0")
 
     testImplementation(kotlin("test-junit"))
+    testImplementation("org.json:json:20240303")
 }

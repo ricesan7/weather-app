@@ -11,11 +11,17 @@ class DefaultProjectCompiler(
     private val circuitCompiler: CircuitCompiler,
     private val electricalValidator: ElectricalValidator,
     private val behaviorCompiler: BehaviorCompiler,
+    private val offlineAutonomyCompiler: OfflineAutonomyCompiler =
+        DefaultOfflineAutonomyCompiler(),
     private val coreAssembler: DesignCoreAssembler,
     private val diagramCompiler: DiagramCompiler,
     private val manifestCompiler: ManifestCompiler,
     private val uiCompiler: UiCompiler,
     private val diagnosticCompiler: DiagnosticCompiler,
+    private val softwareArchitectureCompiler: SoftwareArchitectureCompiler =
+        DefaultSoftwareArchitectureCompiler(),
+    private val projectGraphCompiler: ProjectGraphCompiler =
+        DefaultProjectGraphCompiler(),
 ) : ProjectCompiler {
 
     override fun compile(requirements: ResolvedRequirements): CompileResult {
@@ -26,8 +32,18 @@ class DefaultProjectCompiler(
 
         val capabilities = capabilityMapper.map(requirements)
 
-        val components = componentResolver.resolve(capabilities, requirements)
-            .getOrElse { return failed("component_resolve", it) }
+        val components = componentResolver
+            .resolve(capabilities, requirements)
+            .getOrElse { throwable ->
+                if (
+                    throwable is ComponentResearchRequiredException
+                ) {
+                    return CompileResult.NeedsComponentResearch(
+                        throwable.requests
+                    )
+                }
+                return failed("component_resolve", throwable)
+            }
 
         val board = boardSelector.select(capabilities, components, requirements)
             .getOrElse { return failed("board_select", it) }
@@ -49,6 +65,12 @@ class DefaultProjectCompiler(
         val behavior = behaviorCompiler.compile(requirements, capabilities)
             .getOrElse { return failed("behavior_compile", it) }
 
+        val autonomy = offlineAutonomyCompiler.compile(
+            requirements = requirements,
+            capabilities = capabilities,
+            behavior = behavior,
+        ).getOrElse { return failed("offline_autonomy_compile", it) }
+
         val core = coreAssembler.assemble(
             requirements = requirements,
             capabilities = capabilities,
@@ -57,6 +79,7 @@ class DefaultProjectCompiler(
             circuitGraph = circuitGraph,
             behavior = behavior,
             validation = validation,
+            autonomy = autonomy,
         ).getOrElse { return failed("design_core_assemble", it) }
 
         val diagrams = diagramCompiler.compile(circuitGraph)
@@ -67,6 +90,18 @@ class DefaultProjectCompiler(
 
         val ui = uiCompiler.compile(core)
             .getOrElse { return failed("ui_compile", it) }
+
+        val softwarePlan = softwareArchitectureCompiler.compile(
+            requirements = requirements,
+            core = core,
+            ui = ui,
+        ).getOrElse { return failed("software_architecture_compile", it) }
+
+        val projectGraph = projectGraphCompiler.compile(
+            core = core,
+            ui = ui,
+            softwarePlan = softwarePlan,
+        ).getOrElse { return failed("project_graph_compile", it) }
 
         val diagnostics = diagnosticCompiler.compile(core)
             .getOrElse { return failed("diagnostic_compile", it) }
@@ -86,6 +121,8 @@ class DefaultProjectCompiler(
                 manifest = manifest,
                 uiSpec = ui,
                 testPlan = diagnostics.testPlan,
+                softwarePlan = softwarePlan,
+                projectGraph = projectGraph,
             )
         )
     }

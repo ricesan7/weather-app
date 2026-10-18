@@ -3,11 +3,13 @@ package com.aielectronics.ble.android
 import android.content.Context
 import com.aielectronics.ble.BleRuntimeSession
 import com.aielectronics.ble.BleRuntimeTransport
+import com.aielectronics.ble.RuntimeCapabilities
 
 data class AndroidBleRuntimeConnection(
     val packetIo: AndroidGattBlePacketIo,
     val transport: BleRuntimeTransport,
     val session: BleRuntimeSession,
+    val capabilities: RuntimeCapabilities,
 )
 
 class AndroidBleRuntimeConnector(
@@ -30,12 +32,14 @@ class AndroidBleRuntimeConnector(
 
         val transport = BleRuntimeTransport(packetIo)
         val session = BleRuntimeSession(transport)
-        session.handshake().getOrThrow()
+        val capabilities =
+            session.handshake().getOrThrow()
 
         AndroidBleRuntimeConnection(
             packetIo = packetIo,
             transport = transport,
             session = session,
+            capabilities = capabilities,
         )
     }
 }

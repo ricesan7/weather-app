@@ -109,6 +109,8 @@ data class ProjectManifest(
     val telemetryIds: List<String>,
     val tests: List<TestSpec>,
     val minimumRuntimeVersion: String,
+    val autonomy: OfflineAutonomySpec = OfflineAutonomySpec(),
+    val driverProfiles: List<RuntimeDriverProfile> = emptyList(),
 )
 
 data class ManifestBus(val id: String, val kind: String, val pins: Map<String, String>)
@@ -146,6 +148,7 @@ data class DesignCore(
     val assembly: AssemblySpec,
     val deployment: DeploymentSpec,
     val safety: SafetySummary,
+    val autonomy: OfflineAutonomySpec = OfflineAutonomySpec(),
 ) {
     fun finalize(
         ui: UiSpec,
@@ -171,6 +174,7 @@ data class DesignCore(
         assembly = assembly,
         deployment = deployment,
         safety = safety,
+        autonomy = autonomy,
     )
 }
 
@@ -182,4 +186,6 @@ data class ReleaseBundle(
     val manifest: ProjectManifest?,
     val uiSpec: UiSpec,
     val testPlan: TestPlan,
+    val softwarePlan: SoftwarePlan = SoftwarePlan(),
+    val projectGraph: ProjectGraph = ProjectGraph.EMPTY,
 )

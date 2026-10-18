@@ -3,6 +3,8 @@
 #include "aie/Expression.hpp"
 #include "aie/Manifest.hpp"
 #include "aie/Value.hpp"
+#include <cstdint>
+#include <mutex>
 #include <optional>
 #include <set>
 #include <string>
@@ -16,6 +18,48 @@ public:
     virtual ~RuntimeHardware() = default;
     virtual bool setOutput(const std::string& outputId, const std::string& value) = 0;
     virtual bool runTest(const std::string& command) = 0;
+
+    virtual bool supportsDriverProfile(
+        const DriverProfileSpec&
+    ) const {
+        return false;
+    }
+
+    virtual std::optional<
+        std::unordered_map<std::string, Value>
+    > sampleDevice(
+        const DeviceSpec&,
+        const DriverProfileSpec&
+    ) {
+        return std::nullopt;
+    }
+
+    virtual std::uint64_t monotonicMillis() const {
+        return 0;
+    }
+
+    virtual std::optional<std::string> loadSetting(
+        const std::string&,
+        const std::string&
+    ) {
+        return std::nullopt;
+    }
+
+    virtual bool storeSetting(
+        const std::string&,
+        const std::string&,
+        const std::string&
+    ) {
+        return false;
+    }
+
+    virtual std::optional<std::string> loadManifest() {
+        return std::nullopt;
+    }
+
+    virtual bool storeManifest(const std::string&) {
+        return false;
+    }
 };
 
 struct RuntimeEvent {
@@ -30,6 +74,11 @@ public:
     );
 
     bool deploy(const Manifest& manifest, std::string& error);
+    bool persistManifest(
+        const std::string& encodedManifest,
+        std::string& error
+    );
+    bool restorePersistedManifest(std::string& error);
     bool verifyProject(const std::string& projectId) const;
 
     bool setSetting(
@@ -45,8 +94,8 @@ public:
     bool runTest(const std::string& testId);
     std::unordered_map<std::string, Value> telemetry() const;
 
-    const std::vector<RuntimeEvent>& events() const { return events_; }
-    void clearEvents() { events_.clear(); }
+    std::vector<RuntimeEvent> events() const;
+    void clearEvents();
 
 private:
     bool validateSetting(
@@ -56,15 +105,23 @@ private:
     ) const;
 
     void executeActions(const std::vector<std::string>& actions);
+    void sampleProfileDevices();
+    void recordEvent(const std::string& id);
     std::unordered_map<std::string, Value> context() const;
     const SettingSpec* settingSpec(const std::string& id) const;
+    const DriverProfileSpec* driverProfile(
+        const std::string& driverId
+    ) const;
 
     RuntimeHardware& hardware_;
     std::set<std::string> supportedDrivers_;
+    mutable std::recursive_mutex mutex_;
     std::optional<Manifest> manifest_;
     std::unordered_map<std::string, std::string> settings_;
     std::unordered_map<std::string, Value> inputs_;
     std::unordered_map<std::string, std::string> outputs_;
+    std::unordered_map<std::string, std::uint64_t>
+        lastDeviceSampleAtMs_;
     std::vector<RuntimeEvent> events_;
     ExpressionEvaluator evaluator_;
 };

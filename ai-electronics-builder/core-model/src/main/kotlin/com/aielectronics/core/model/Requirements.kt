@@ -5,6 +5,7 @@ data class ResolvedRequirements(
     val slots: Map<String, RequirementValue>,
     val assumptions: List<Assumption> = emptyList(),
     val unresolved: List<MissingRequirement> = emptyList(),
+    val requestedComponents: List<RequestedComponent> = emptyList(),
 )
 
 data class RequirementValue(

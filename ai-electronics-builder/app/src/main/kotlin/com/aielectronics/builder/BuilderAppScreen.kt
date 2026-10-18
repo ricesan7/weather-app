@@ -1,6 +1,9 @@
 package com.aielectronics.builder
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +24,7 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -29,16 +33,23 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.unit.dp
 import com.aielectronics.application.DesignExplanationBuilder
+import com.aielectronics.application.SavedGraphNodePosition
 import com.aielectronics.assembly.GuidedBuildSnapshot
 import com.aielectronics.assembly.GuidedBuildStateMachine
 import com.aielectronics.bench.BenchGateScreen
 import com.aielectronics.control.RuntimeControlDashboard
 import com.aielectronics.editor.AdvancedProjectEditor
+import com.aielectronics.core.model.ComponentVerificationStatus
 import com.aielectronics.core.model.DiagramSpec
 import com.aielectronics.core.model.NetType
+import com.aielectronics.core.model.ProjectGraph
+import com.aielectronics.core.model.ProjectGraphDomain
+import com.aielectronics.core.model.ProjectGraphNodeKind
 import com.aielectronics.parts.GoldenEngineeringCatalog
 
 @Composable
@@ -52,13 +63,35 @@ fun BuilderAppScreen(
     onOpen: (AppScreen) -> Unit,
     onConnect: () -> Unit,
     onDeploy: () -> Unit,
+    onBridgePairingCodeChange: (String) -> Unit,
+    onPairBase44: () -> Unit,
+    onReceiveBase44Design: () -> Unit,
+    onRetryComponentResearch: () -> Unit,
+    onChangeResearchComponent: (String) -> Unit,
+    onResearchComponentReplacementChange: (String) -> Unit,
+    onConfirmResearchComponentChange: () -> Unit,
+    onCancelResearchComponentChange: () -> Unit,
     onBuildProgress: (Set<String>, Int) -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onNewProject: () -> Unit,
     onOpenBuildStep: (Int) -> Unit,
+    onGraphNodeSelect: (String?) -> Unit,
+    onGraphNodeMove: (String, SavedGraphNodePosition) -> Unit,
+    onGraphNodeMoveFinished: () -> Unit,
+    onGraphLayoutUndo: () -> Unit,
+    onGraphLayoutRedo: () -> Unit,
+    onGraphAddElement: (String) -> Unit,
+    onGraphChangeNode: (String, String) -> Unit,
+    onGraphDeleteNode: (String) -> Unit,
     onClearError: () -> Unit,
 ) {
+    BackHandler(
+        enabled = state.componentReplacementTarget != null,
+    ) {
+        onCancelResearchComponentChange()
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -91,11 +124,43 @@ fun BuilderAppScreen(
                 onGoalChange = onGoalChange,
                 onStartDesign = onStartDesign,
                 onAnswerQuestion = onAnswerQuestion,
+                onBridgePairingCodeChange = onBridgePairingCodeChange,
+                onReceiveBase44Design = onReceiveBase44Design,
+                onRetryComponentResearch =
+                    onRetryComponentResearch,
+                onChangeResearchComponent =
+                    onChangeResearchComponent,
+                onResearchComponentReplacementChange =
+                    onResearchComponentReplacementChange,
+                onConfirmResearchComponentChange =
+                    onConfirmResearchComponentChange,
+                onCancelResearchComponentChange =
+                    onCancelResearchComponentChange,
+                onOpenDesign = {
+                    onOpen(AppScreen.DESIGN)
+                },
                 onResumeProject = onResumeProject,
                 onDeleteProject = onDeleteProject,
                 onNewProject = onNewProject,
             )
-            AppScreen.DESIGN -> DesignScreen(state, onOpen)
+            AppScreen.DESIGN -> DesignScreen(
+                state = state,
+                onOpen = onOpen,
+                onRetryComponentResearch =
+                    onRetryComponentResearch,
+            )
+            AppScreen.GRAPH -> ProjectGraphScreen(
+                state = state,
+                onOpen = onOpen,
+                onNodeSelect = onGraphNodeSelect,
+                onNodeMove = onGraphNodeMove,
+                onNodeMoveFinished = onGraphNodeMoveFinished,
+                onLayoutUndo = onGraphLayoutUndo,
+                onLayoutRedo = onGraphLayoutRedo,
+                onAddElement = onGraphAddElement,
+                onChangeNode = onGraphChangeNode,
+                onDeleteNode = onGraphDeleteNode,
+            )
             AppScreen.PARTS -> PartsScreen(state, onOpen)
             AppScreen.WIRING -> WiringScreen(state, onOpen)
             AppScreen.BUILD -> BuildScreen(
@@ -107,6 +172,8 @@ fun BuilderAppScreen(
                 state = state,
                 onConnect = onConnect,
                 onDeploy = onDeploy,
+                onBridgePairingCodeChange = onBridgePairingCodeChange,
+                onPairBase44 = onPairBase44,
                 onOpen = onOpen,
             )
             AppScreen.CONTROL -> ControlScreen(
@@ -149,6 +216,7 @@ private fun AppTitle(state: BuilderAppState) {
             text = when (state.screen) {
                 AppScreen.HOME -> "作りたいものを話す"
                 AppScreen.DESIGN -> "設計"
+                AppScreen.GRAPH -> "Visual Project"
                 AppScreen.PARTS -> "部品"
                 AppScreen.WIRING -> "配線"
                 AppScreen.BUILD -> "組立"
@@ -161,6 +229,35 @@ private fun AppTitle(state: BuilderAppState) {
             style = MaterialTheme.typography.titleMedium,
         )
     }
+}
+
+private fun componentResearchStatusLabel(
+    status: ComponentVerificationStatus,
+): String = when (status) {
+    ComponentVerificationStatus.UNREGISTERED -> "未登録"
+    ComponentVerificationStatus.DISCOVERED -> "候補発見"
+    ComponentVerificationStatus.EXTRACTED -> "仕様抽出済み"
+    ComponentVerificationStatus.VERIFIED -> "公式資料確認済み・検証待ち"
+    ComponentVerificationStatus.DESIGN_READY -> "設計利用可能"
+    ComponentVerificationStatus.REJECTED -> "採用不可"
+}
+
+private fun componentResearchMissingLabel(
+    field: String,
+): String = when (field) {
+    "manufacturer_evidence" -> "メーカー公式資料"
+    "manufacturer" -> "メーカー名"
+    "model" -> "正式型番"
+    "display_name" -> "表示名"
+    "primary_interface" -> "通信方式"
+    "voltage_range" -> "動作電圧"
+    "pins" -> "ピン定義"
+    "capabilities" -> "機能定義"
+    "i2c_address" -> "I2Cアドレス"
+    "runtime_driver" -> "Runtime Driver"
+    "runtime_driver_profile" ->
+        "Runtime Driver Profileの検証"
+    else -> field
 }
 
 @Composable
@@ -190,6 +287,14 @@ private fun HomeScreen(
     onGoalChange: (String) -> Unit,
     onStartDesign: () -> Unit,
     onAnswerQuestion: (String, String) -> Unit,
+    onBridgePairingCodeChange: (String) -> Unit,
+    onReceiveBase44Design: () -> Unit,
+    onRetryComponentResearch: () -> Unit,
+    onChangeResearchComponent: (String) -> Unit,
+    onResearchComponentReplacementChange: (String) -> Unit,
+    onConfirmResearchComponentChange: () -> Unit,
+    onCancelResearchComponentChange: () -> Unit,
+    onOpenDesign: () -> Unit,
     onResumeProject: (String) -> Unit,
     onDeleteProject: (String) -> Unit,
     onNewProject: () -> Unit,
@@ -200,8 +305,288 @@ private fun HomeScreen(
 
     LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
         item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        "Base44から設計を受け取る",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        "CircuitFlowで「仕様を確定して実機設計へ送る」を押した時に表示される接続コードを入力します。",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = state.bridgePairingCode,
+                        onValueChange = onBridgePairingCodeChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text("接続コード") },
+                        singleLine = true,
+                        enabled = !state.busy,
+                    )
+                    Button(
+                        onClick = onReceiveBase44Design,
+                        enabled =
+                            state.bridgePairingCode.isNotBlank() &&
+                                !state.busy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(
+                            if (
+                                state.busy &&
+                                state.base44HandoffStatus == "receiving"
+                            ) {
+                                "確定仕様を受信中…"
+                            } else {
+                                "Base44の確定仕様から自動設計"
+                            }
+                        )
+                    }
+                    if (state.base44HandoffMessage.isNotBlank()) {
+                        Text(
+                            state.base44HandoffMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                    }
+                }
+            }
+        }
+        if (
+            state.componentResearchActive ||
+            state.componentResearchMessage.isNotBlank() ||
+            state.componentResearchRecords.isNotEmpty()
+        ) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "Component Research",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        if (state.componentResearchActive) {
+                            LinearProgressIndicator(
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                        }
+                        if (state.componentResearchMessage.isNotBlank()) {
+                            Text(
+                                state.componentResearchMessage,
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        state.componentResearchRecords.forEach { record ->
+                            Column(
+                                verticalArrangement =
+                                    Arrangement.spacedBy(2.dp),
+                            ) {
+                                Text(
+                                    record.requestedName +
+                                        " — " +
+                                        componentResearchStatusLabel(
+                                            record.status
+                                        ),
+                                    style =
+                                        MaterialTheme.typography.bodyMedium,
+                                )
+                                val identity =
+                                    listOfNotNull(
+                                        record.manufacturer,
+                                        record.model,
+                                    ).joinToString(" ")
+                                if (identity.isNotBlank()) {
+                                    Text(
+                                        identity,
+                                        style =
+                                            MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                record.component
+                                    ?.runtimeDriverProfile
+                                    ?.let { profile ->
+                                        Text(
+                                            "Runtime Driver: " +
+                                                profile.family.name +
+                                                " / " +
+                                                when (
+                                                    profile.status
+                                                ) {
+                                                    com.aielectronics.core.model.RuntimeDriverProfileStatus.RUNTIME_READY ->
+                                                        "実行可能"
+                                                    com.aielectronics.core.model.RuntimeDriverProfileStatus.VALIDATED ->
+                                                        "検証済み・Runtime未対応"
+                                                    com.aielectronics.core.model.RuntimeDriverProfileStatus.GENERATED ->
+                                                        "候補生成"
+                                                    com.aielectronics.core.model.RuntimeDriverProfileStatus.REJECTED ->
+                                                        "採用不可"
+                                                },
+                                            style =
+                                                MaterialTheme.typography.bodySmall,
+                                        )
+                                    }
+                                if (record.missingFields.isNotEmpty()) {
+                                    Text(
+                                        "未完了: " +
+                                            record.missingFields
+                                                .joinToString {
+                                                    field ->
+                                                    componentResearchMissingLabel(
+                                                        field
+                                                    )
+                                                },
+                                        style =
+                                            MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                if (record.sources.isNotEmpty()) {
+                                    Text(
+                                        "確認ソース " +
+                                            record.sources.size +
+                                            "件",
+                                        style =
+                                            MaterialTheme.typography.bodySmall,
+                                    )
+                                }
+                                if (
+                                    record.status !=
+                                        ComponentVerificationStatus.DESIGN_READY &&
+                                    !state.componentResearchActive
+                                ) {
+                                    if (
+                                        state.componentReplacementTarget ==
+                                            record.requestedName
+                                    ) {
+                                        OutlinedTextField(
+                                            value =
+                                                state.componentReplacementText,
+                                            onValueChange =
+                                                onResearchComponentReplacementChange,
+                                            modifier =
+                                                Modifier.fillMaxWidth(),
+                                            label = {
+                                                Text(
+                                                    "変更後の部品名・型番"
+                                                )
+                                            },
+                                            supportingText = {
+                                                Text(
+                                                    "例: DHT11 → SHT31 / SSD1306 OLED"
+                                                )
+                                            },
+                                            singleLine = true,
+                                            enabled = !state.busy,
+                                        )
+                                        Button(
+                                            onClick =
+                                                onConfirmResearchComponentChange,
+                                            enabled =
+                                                state.componentReplacementText
+                                                    .isNotBlank() &&
+                                                    !state.busy,
+                                            modifier =
+                                                Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text(
+                                                "この部品に変更して設計を続行"
+                                            )
+                                        }
+                                        OutlinedButton(
+                                            onClick =
+                                                onCancelResearchComponentChange,
+                                            enabled = !state.busy,
+                                            modifier =
+                                                Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text(
+                                                if (state.bundle != null) {
+                                                    "部品変更をやめて設計へ戻る"
+                                                } else {
+                                                    "部品変更をやめて戻る"
+                                                }
+                                            )
+                                        }
+                                    } else {
+                                        OutlinedButton(
+                                            onClick = {
+                                                onChangeResearchComponent(
+                                                    record.requestedName
+                                                )
+                                            },
+                                            enabled =
+                                                state.componentReplacementTarget ==
+                                                    null &&
+                                                    !state.busy,
+                                            modifier =
+                                                Modifier.fillMaxWidth(),
+                                        ) {
+                                            Text("別部品を選ぶ")
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        val waiting =
+                            state.componentResearchRecords.any {
+                                it.status !=
+                                    ComponentVerificationStatus.DESIGN_READY
+                            }
+
+                        if (
+                            waiting &&
+                            !state.componentResearchActive
+                        ) {
+                            Button(
+                                onClick =
+                                    onRetryComponentResearch,
+                                enabled = !state.busy,
+                                modifier =
+                                    Modifier.fillMaxWidth(),
+                            ) {
+                                Text(
+                                    "再調査して設計を続行"
+                                )
+                            }
+                            Text(
+                                "公式資料とRuntime Driverをもう一度確認し、" +
+                                    "条件を満たせば自動で設計を再開します。" +
+                                    if (state.bundle == null) {
+                                        " 改善しない場合は下の仕様欄で" +
+                                            "対象部品を変更して再設計できます。"
+                                    } else {
+                                        " 電気設計が完成済みの場合は" +
+                                            "設計画面へ戻って内容を確認できます。"
+                                    },
+                                style =
+                                    MaterialTheme.typography.bodySmall,
+                            )
+                        }
+
+                        if (
+                            state.bundle != null &&
+                            !state.componentResearchActive &&
+                            state.componentReplacementTarget == null
+                        ) {
+                            OutlinedButton(
+                                onClick = onOpenDesign,
+                                enabled = !state.busy,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("設計画面へ戻る")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
             Text(
-                "例：温度が30℃以上になったらファンを回したい。履歴もスマホで見たい。",
+                "または、このアプリから直接作りたいものを入力できます。",
                 style = MaterialTheme.typography.bodyMedium,
             )
         }
@@ -322,8 +707,17 @@ private fun HomeScreen(
 private fun DesignScreen(
     state: BuilderAppState,
     onOpen: (AppScreen) -> Unit,
+    onRetryComponentResearch: () -> Unit,
 ) {
     val bundle = state.bundle ?: return
+    val runtimePending =
+        bundle.designIr.components.filter {
+            instance ->
+            instance.properties["runtime_required"] ==
+                "true" &&
+                instance.properties["runtime_ready"] !=
+                "true"
+        }
     val catalog = GoldenEngineeringCatalog
     val board = catalog.board(bundle.designIr.board.boardId)
 
@@ -339,6 +733,67 @@ private fun DesignScreen(
         }
         item {
             InfoCard("安全確認", bundle.validation.state.name)
+        }
+        if (runtimePending.isNotEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement =
+                            Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "設計は続行できます",
+                            style =
+                                MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            "電気設計・部品・配線・組立は確認できます。" +
+                                "次の部品はRuntime Driver検証待ちのため、" +
+                                "実機への設定だけ保留されています。",
+                            style =
+                                MaterialTheme.typography.bodySmall,
+                        )
+                        runtimePending.forEach { instance ->
+                            Text(
+                                "・" +
+                                    (
+                                        instance.properties[
+                                            "display_name"
+                                        ]
+                                            ?: instance.componentId
+                                    ),
+                                style =
+                                    MaterialTheme.typography.bodyMedium,
+                            )
+                        }
+                        Button(
+                            onClick =
+                                onRetryComponentResearch,
+                            enabled =
+                                !state.busy &&
+                                    !state.componentResearchActive,
+                            modifier =
+                                Modifier.fillMaxWidth(),
+                        ) {
+                            Text("Runtime Driverを再検証")
+                        }
+                    }
+                }
+            }
+        }
+        state.base44HandoffRevision?.let { revision ->
+            item {
+                InfoCard(
+                    "Base44 Design Handoff",
+                    "revision " + revision + " / " +
+                        if (state.base44HandoffStatus == "compiled") {
+                            "設計・安全検証完了"
+                        } else {
+                            state.base44HandoffStatus
+                        },
+                )
+            }
         }
         state.lastSavedAtEpochMs?.let {
             item {
@@ -376,6 +831,14 @@ private fun DesignScreen(
         }
         item {
             Button(
+                onClick = { onOpen(AppScreen.GRAPH) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("Visual Projectを見る")
+            }
+        }
+        item {
+            OutlinedButton(
                 onClick = { onOpen(AppScreen.PARTS) },
                 modifier = Modifier.fillMaxWidth(),
             ) {
@@ -400,6 +863,565 @@ private fun DesignScreen(
         }
     }
 }
+
+@Composable
+private fun ProjectGraphScreen(
+    state: BuilderAppState,
+    onOpen: (AppScreen) -> Unit,
+    onNodeSelect: (String?) -> Unit,
+    onNodeMove: (String, SavedGraphNodePosition) -> Unit,
+    onNodeMoveFinished: () -> Unit,
+    onLayoutUndo: () -> Unit,
+    onLayoutRedo: () -> Unit,
+    onAddElement: (String) -> Unit,
+    onChangeNode: (String, String) -> Unit,
+    onDeleteNode: (String) -> Unit,
+) {
+    val bundle = state.bundle ?: return
+    val graph = bundle.projectGraph
+    val selectedNode = graph.nodes.firstOrNull {
+        it.id == state.selectedGraphNodeId
+    }
+
+    var addText by remember(graph.schemaVersion) {
+        mutableStateOf("")
+    }
+    var changeText by remember(state.selectedGraphNodeId) {
+        mutableStateOf("")
+    }
+    var paletteQuery by remember {
+        mutableStateOf("")
+    }
+    val paletteComponents = remember(paletteQuery) {
+        val query = paletteQuery.trim().lowercase()
+        GoldenEngineeringCatalog.components()
+            .filter { it.designReady && it.providesCapabilities.isNotEmpty() }
+            .filter { component ->
+                query.isBlank() ||
+                    component.displayName.lowercase().contains(query) ||
+                    component.componentId.lowercase().contains(query) ||
+                    component.defaultRole.lowercase().contains(query) ||
+                    component.providesCapabilities.any { capability ->
+                        visualCapabilityLabel(capability.value)
+                            .lowercase()
+                            .contains(query)
+                    }
+            }
+    }
+
+    LazyColumn(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+        item {
+            InfoCard(
+                "Visual Project Editor",
+                "ノード " + graph.nodes.size + "個 / 接続 " + graph.edges.size + "本",
+            )
+        }
+        item {
+            Text(
+                "ノードをタップして選択し、ドラッグして配置を変更できます。" +
+                    "部品や機能の追加・変更・削除は再設計と安全検証を通して反映します。",
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+        item {
+            ProjectGraphCanvas(
+                graph = graph,
+                persistedPositions = state.graphNodePositions,
+                selectedNodeId = state.selectedGraphNodeId,
+                onNodeSelect = onNodeSelect,
+                onNodeMove = onNodeMove,
+                onNodeMoveFinished = onNodeMoveFinished,
+            )
+        }
+        item {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                OutlinedButton(
+                    onClick = onLayoutUndo,
+                    enabled =
+                        state.graphLayoutUndoStack.isNotEmpty() &&
+                            !state.busy,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("元に戻す")
+                }
+                OutlinedButton(
+                    onClick = onLayoutRedo,
+                    enabled =
+                        state.graphLayoutRedoStack.isNotEmpty() &&
+                            !state.busy,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    Text("やり直す")
+                }
+            }
+        }
+
+        selectedNode?.let { node ->
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            node.label,
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            node.domain.name + " / " + node.kind.name,
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                        node.metadata
+                            .filterValues { it.isNotBlank() }
+                            .entries
+                            .take(6)
+                            .forEach { (key, value) ->
+                                Text(
+                                    key + ": " + value,
+                                    style = MaterialTheme.typography.bodySmall,
+                                )
+                            }
+
+                        OutlinedTextField(
+                            value = changeText,
+                            onValueChange = { changeText = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            minLines = 2,
+                            label = { Text("この要素をどう変更しますか？") },
+                            enabled = !state.busy,
+                        )
+                        Button(
+                            onClick = {
+                                onChangeNode(node.id, changeText)
+                                changeText = ""
+                            },
+                            enabled = changeText.isNotBlank() && !state.busy,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text(if (state.busy) "再設計中…" else "変更を設計へ反映")
+                        }
+
+                        if (
+                            node.kind != ProjectGraphNodeKind.BOARD &&
+                            node.kind != ProjectGraphNodeKind.RUNTIME
+                        ) {
+                            OutlinedButton(
+                                onClick = { onDeleteNode(node.id) },
+                                enabled = !state.busy,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text("この要素を削除")
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (paletteComponents.isNotEmpty()) {
+            item {
+                Card(modifier = Modifier.fillMaxWidth()) {
+                    Column(
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                    ) {
+                        Text(
+                            "検証済み部品パレット",
+                            style = MaterialTheme.typography.titleMedium,
+                        )
+                        Text(
+                            "設計Readyの部品だけを表示しています。必要なドライバや電源部品は再設計時に自動選定します。",
+                            style = MaterialTheme.typography.bodySmall,
+                        )
+                        OutlinedTextField(
+                            value = paletteQuery,
+                            onValueChange = { paletteQuery = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            label = { Text("部品・機能を検索") },
+                            enabled = !state.busy,
+                        )
+                        if (paletteComponents.isEmpty()) {
+                            Text(
+                                "一致する検証済み部品はありません。",
+                                style = MaterialTheme.typography.bodySmall,
+                            )
+                        }
+                        paletteComponents.forEach { component ->
+                            OutlinedButton(
+                                onClick = {
+                                    val capabilities = component.providesCapabilities
+                                        .joinToString("・") { capability ->
+                                            visualCapabilityLabel(capability.value)
+                                        }
+                                    onAddElement(
+                                        component.displayName +
+                                            " (" + component.componentId + ") を追加し、" +
+                                            capabilities +
+                                            "ができるようにしてください。" +
+                                            "この検証済み型番を優先して設計してください。"
+                                    )
+                                },
+                                enabled = !state.busy,
+                                modifier = Modifier.fillMaxWidth(),
+                            ) {
+                                Text(component.displayName)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        item {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        "要素を追加",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        "例：照度センサーを追加 / モーターを追加 / スマホに設定画面を追加",
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    OutlinedTextField(
+                        value = addText,
+                        onValueChange = { addText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        minLines = 2,
+                        label = { Text("追加したい部品・機能・画面") },
+                        enabled = !state.busy,
+                    )
+                    Button(
+                        onClick = {
+                            onAddElement(addText)
+                            addText = ""
+                        },
+                        enabled = addText.isNotBlank() && !state.busy,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Text(if (state.busy) "再設計中…" else "＋ Visual Projectへ追加")
+                    }
+                }
+            }
+        }
+
+        item {
+            Text(
+                "ドラッグ配置は画面レイアウトとして保存されます。" +
+                    "設計要素の追加・変更・削除はDesignCoreを再生成するため、" +
+                    "回路・BOM・配線・Firmware・Base44アプリも必要に応じて更新されます。",
+                style = MaterialTheme.typography.bodySmall,
+            )
+        }
+        item {
+            Button(
+                onClick = { onOpen(AppScreen.PARTS) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("部品と配線へ進む")
+            }
+        }
+        item {
+            OutlinedButton(
+                onClick = { onOpen(AppScreen.DESIGN) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text("設計へ戻る")
+            }
+        }
+    }
+}
+
+@Composable
+private fun ProjectGraphCanvas(
+    graph: ProjectGraph,
+    persistedPositions: Map<String, SavedGraphNodePosition>,
+    selectedNodeId: String?,
+    onNodeSelect: (String?) -> Unit,
+    onNodeMove: (String, SavedGraphNodePosition) -> Unit,
+    onNodeMoveFinished: () -> Unit,
+) {
+    val lanes = graph.lanes.sortedBy { it.order }
+    var livePositions by remember(graph) {
+        mutableStateOf(resolveGraphPositions(graph, persistedPositions))
+    }
+    var draggingNodeId by remember { mutableStateOf<String?>(null) }
+
+    LaunchedEffect(graph, persistedPositions) {
+        livePositions = resolveGraphPositions(graph, persistedPositions)
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .aspectRatio(0.78f)
+                .padding(8.dp),
+        ) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(graph, livePositions) {
+                        detectTapGestures { offset ->
+                            if (size.width <= 0 || size.height <= 0) return@detectTapGestures
+                            val position = SavedGraphNodePosition(
+                                x = offset.x / size.width.toDouble(),
+                                y = offset.y / size.height.toDouble(),
+                            )
+                            onNodeSelect(
+                                findGraphNodeAt(
+                                    graph = graph,
+                                    positions = livePositions,
+                                    position = position,
+                                )
+                            )
+                        }
+                    }
+                    .pointerInput(graph) {
+                        detectDragGestures(
+                            onDragStart = { offset ->
+                                if (size.width <= 0 || size.height <= 0) {
+                                    return@detectDragGestures
+                                }
+                                val position = SavedGraphNodePosition(
+                                    x = offset.x / size.width.toDouble(),
+                                    y = offset.y / size.height.toDouble(),
+                                )
+                                draggingNodeId = findGraphNodeAt(
+                                    graph = graph,
+                                    positions = livePositions,
+                                    position = position,
+                                )
+                                onNodeSelect(draggingNodeId)
+                            },
+                            onDragEnd = {
+                                val nodeId = draggingNodeId
+                                val position = nodeId?.let(livePositions::get)
+                                if (nodeId != null && position != null) {
+                                    onNodeMove(nodeId, position)
+                                    onNodeMoveFinished()
+                                }
+                                draggingNodeId = null
+                            },
+                            onDragCancel = {
+                                draggingNodeId = null
+                            },
+                        ) { change, dragAmount ->
+                            val nodeId = draggingNodeId
+                                ?: return@detectDragGestures
+                            val current = livePositions[nodeId]
+                                ?: return@detectDragGestures
+                            if (size.width <= 0 || size.height <= 0) {
+                                return@detectDragGestures
+                            }
+                            change.consume()
+
+                            val requested = SavedGraphNodePosition(
+                                x = current.x +
+                                    dragAmount.x / size.width.toDouble(),
+                                y = current.y +
+                                    dragAmount.y / size.height.toDouble(),
+                            )
+                            val next = clampGraphPosition(
+                                graph = graph,
+                                nodeId = nodeId,
+                                position = requested,
+                            )
+                            livePositions =
+                                livePositions + (nodeId to next)
+                        }
+                    }
+            ) {
+                if (lanes.isEmpty()) return@Canvas
+
+                val laneWidth = size.width / lanes.size
+                val nodeWidth = laneWidth * 0.78f
+                val nodeHeight = (size.height * 0.065f).coerceIn(38f, 54f)
+
+                val titlePaint = android.graphics.Paint().apply {
+                    isAntiAlias = true
+                    textSize = 22f
+                    color = android.graphics.Color.DKGRAY
+                    textAlign = android.graphics.Paint.Align.CENTER
+                }
+                val nodePaint = android.graphics.Paint().apply {
+                    isAntiAlias = true
+                    textSize = 18f
+                    color = android.graphics.Color.DKGRAY
+                    textAlign = android.graphics.Paint.Align.CENTER
+                }
+
+                lanes.forEachIndexed { laneIndex, lane ->
+                    val centerX = laneWidth * laneIndex + laneWidth / 2f
+
+                    if (laneIndex > 0) {
+                        drawLine(
+                            color = Color(0xFFE0E0E0),
+                            start = Offset(laneWidth * laneIndex, 0f),
+                            end = Offset(laneWidth * laneIndex, size.height),
+                            strokeWidth = 1.5f,
+                        )
+                    }
+
+                    drawContext.canvas.nativeCanvas.drawText(
+                        lane.title,
+                        centerX,
+                        28f,
+                        titlePaint,
+                    )
+                }
+
+                graph.edges.forEach { edge ->
+                    val startPosition = livePositions[edge.fromNodeId]
+                    val endPosition = livePositions[edge.toNodeId]
+                    if (startPosition != null && endPosition != null) {
+                        drawLine(
+                            color = Color(0xFF9E9E9E),
+                            start = Offset(
+                                (startPosition.x * size.width).toFloat(),
+                                (startPosition.y * size.height).toFloat(),
+                            ),
+                            end = Offset(
+                                (endPosition.x * size.width).toFloat(),
+                                (endPosition.y * size.height).toFloat(),
+                            ),
+                            strokeWidth = 2.5f,
+                        )
+                    }
+                }
+
+                graph.nodes.forEach { node ->
+                    val normalized = livePositions[node.id] ?: return@forEach
+                    val center = Offset(
+                        (normalized.x * size.width).toFloat(),
+                        (normalized.y * size.height).toFloat(),
+                    )
+                    val topLeft = Offset(
+                        center.x - nodeWidth / 2f,
+                        center.y - nodeHeight / 2f,
+                    )
+
+                    drawRect(
+                        color = projectGraphNodeColor(node.domain),
+                        topLeft = topLeft,
+                        size = Size(nodeWidth, nodeHeight),
+                    )
+
+                    if (node.id == selectedNodeId) {
+                        drawRect(
+                            color = Color(0xFF212121),
+                            topLeft = topLeft,
+                            size = Size(nodeWidth, nodeHeight),
+                            style = Stroke(width = 4f),
+                        )
+                    }
+
+                    drawContext.canvas.nativeCanvas.drawText(
+                        node.label.take(14),
+                        center.x,
+                        center.y + 6f,
+                        nodePaint,
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun resolveGraphPositions(
+    graph: ProjectGraph,
+    persisted: Map<String, SavedGraphNodePosition>,
+): Map<String, SavedGraphNodePosition> {
+    val lanes = graph.lanes.sortedBy { it.order }
+    if (lanes.isEmpty()) return emptyMap()
+
+    val defaults = linkedMapOf<String, SavedGraphNodePosition>()
+    lanes.forEachIndexed { laneIndex, lane ->
+        val nodes = graph.nodes.filter { it.domain == lane.domain }
+        nodes.forEachIndexed { index, node ->
+            val x = (laneIndex + 0.5) / lanes.size.toDouble()
+            val y = 0.11 + 0.82 * ((index + 1.0) / (nodes.size + 1.0))
+            defaults[node.id] = SavedGraphNodePosition(x = x, y = y)
+        }
+    }
+
+    return defaults.mapValues { (nodeId, fallback) ->
+        persisted[nodeId]
+            ?.let {
+                clampGraphPosition(
+                    graph = graph,
+                    nodeId = nodeId,
+                    position = it,
+                )
+            }
+            ?: fallback
+    }
+}
+
+private fun clampGraphPosition(
+    graph: ProjectGraph,
+    nodeId: String,
+    position: SavedGraphNodePosition,
+): SavedGraphNodePosition {
+    val lanes = graph.lanes.sortedBy { it.order }
+    val node = graph.nodes.firstOrNull { it.id == nodeId }
+        ?: return SavedGraphNodePosition(
+            x = position.x.coerceIn(0.02, 0.98),
+            y = position.y.coerceIn(0.10, 0.96),
+        )
+    val laneIndex = lanes.indexOfFirst { it.domain == node.domain }
+    if (laneIndex < 0) return position
+
+    val laneStart = laneIndex / lanes.size.toDouble()
+    val laneEnd = (laneIndex + 1.0) / lanes.size.toDouble()
+    val margin = 0.025
+
+    return SavedGraphNodePosition(
+        x = position.x.coerceIn(laneStart + margin, laneEnd - margin),
+        y = position.y.coerceIn(0.10, 0.96),
+    )
+}
+
+private fun findGraphNodeAt(
+    graph: ProjectGraph,
+    positions: Map<String, SavedGraphNodePosition>,
+    position: SavedGraphNodePosition,
+): String? {
+    val laneCount = graph.lanes.size.coerceAtLeast(1)
+    val halfWidth = (0.78 / laneCount) / 2.0
+    val halfHeight = 0.042
+
+    return graph.nodes
+        .asReversed()
+        .firstOrNull { node ->
+            val center = positions[node.id] ?: return@firstOrNull false
+            kotlin.math.abs(center.x - position.x) <= halfWidth &&
+                kotlin.math.abs(center.y - position.y) <= halfHeight
+        }
+        ?.id
+}
+
+private fun visualCapabilityLabel(capabilityId: String): String = when (capabilityId) {
+    "measure_temperature" -> "温度測定"
+    "measure_humidity" -> "湿度測定"
+    "actuate_fan" -> "ファン制御"
+    else -> capabilityId
+}
+
+private fun projectGraphNodeColor(domain: ProjectGraphDomain): Color = when (domain) {
+    ProjectGraphDomain.HARDWARE -> Color(0xFFE3F2FD)
+    ProjectGraphDomain.BEHAVIOR -> Color(0xFFFFF3E0)
+    ProjectGraphDomain.APPLICATION -> Color(0xFFE8F5E9)
+    ProjectGraphDomain.RUNTIME -> Color(0xFFF3E5F5)
+}
+
 
 @Composable
 private fun RevisionScreen(
@@ -483,12 +1505,25 @@ private fun RevisionScreen(
         }
 
         item {
+            val returnScreen =
+                state.revisionReturnScreen
+                    ?: if (state.bundle != null) {
+                        AppScreen.DESIGN
+                    } else {
+                        AppScreen.HOME
+                    }
             OutlinedButton(
-                onClick = { onOpen(AppScreen.DESIGN) },
+                onClick = { onOpen(returnScreen) },
                 enabled = !state.busy,
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text("設計へ戻る（会話は保持）")
+                Text(
+                    if (returnScreen == AppScreen.HOME) {
+                        "検証待ち部品へ戻る"
+                    } else {
+                        "設計へ戻る（会話は保持）"
+                    }
+                )
             }
         }
     }
@@ -507,7 +1542,16 @@ private fun PartsScreen(
 
         bundle.designIr.components.forEach { instance ->
             val spec = catalog.component(instance.componentId)
-            add("1 × " + (spec?.displayName ?: instance.componentId) + " — " + instance.role)
+            val displayName =
+                instance.properties["display_name"]
+                    ?: spec?.displayName
+                    ?: instance.componentId
+            add(
+                "1 × " +
+                    displayName +
+                    " — " +
+                    instance.role
+            )
         }
 
         bundle.designIr.power.sources
@@ -687,6 +1731,8 @@ private fun ConnectScreen(
     state: BuilderAppState,
     onConnect: () -> Unit,
     onDeploy: () -> Unit,
+    onBridgePairingCodeChange: (String) -> Unit,
+    onPairBase44: () -> Unit,
     onOpen: (AppScreen) -> Unit,
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
@@ -694,6 +1740,54 @@ private fun ConnectScreen(
             "接続",
             if (state.connection == null) "未接続" else "BLE接続済み",
         )
+
+        val needsBase44 =
+            state.bundle?.softwarePlan?.base44DesignRequired == true
+
+        if (needsBase44) {
+            Card(modifier = Modifier.fillMaxWidth()) {
+                Column(
+                    modifier = Modifier.padding(16.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                ) {
+                    Text(
+                        "CircuitFlow / Base44",
+                        style = MaterialTheme.typography.titleMedium,
+                    )
+                    Text(
+                        if (state.base44BridgeStatus.isBlank()) {
+                            "CircuitFlowで「接続コードを発行」して、ここへ入力します。"
+                        } else {
+                            state.base44BridgeStatus
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                    )
+                    if (!state.base44BridgeOnline) {
+                        OutlinedTextField(
+                            value = state.bridgePairingCode,
+                            onValueChange = onBridgePairingCodeChange,
+                            modifier = Modifier.fillMaxWidth(),
+                            label = { Text("接続コード") },
+                            singleLine = true,
+                        )
+                        Button(
+                            onClick = onPairBase44,
+                            enabled =
+                                state.bridgePairingCode.isNotBlank() &&
+                                    !state.busy,
+                            modifier = Modifier.fillMaxWidth(),
+                        ) {
+                            Text("CircuitFlowと接続")
+                        }
+                    } else {
+                        InfoCard(
+                            "Bridge",
+                            "接続済み / 画面表示中は3秒同期、バックグラウンドでも10秒ごとに接続維持",
+                        )
+                    }
+                }
+            }
+        }
 
         if (state.deployMessage.isNotBlank()) {
             Text(state.deployMessage)

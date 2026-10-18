@@ -47,6 +47,13 @@ class GoldenFrictionBenchmark(
                 }
                 error("Golden friction compile unexpectedly requires user input")
             }
+            is CompileResult.NeedsComponentResearch ->
+                error(
+                    "Golden friction flow unexpectedly requested component research: " +
+                        compile.requests.joinToString {
+                            it.requested.rawName
+                        }
+                )
             is CompileResult.Blocked ->
                 error("Golden friction flow blocked")
             is CompileResult.Failed ->

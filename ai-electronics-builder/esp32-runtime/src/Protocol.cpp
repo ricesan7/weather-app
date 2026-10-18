@@ -142,10 +142,18 @@ RuntimeFrame ProtocolDispatcher::handle(const RuntimeFrame& request) {
                 request,
                 {
                     {"protocol_version", "1"},
+                    {"runtime_version", "0.3.0"},
                     {"manifest", "true"},
                     {"settings", "true"},
                     {"self_test", "true"},
                     {"telemetry", "true"},
+                    {"offline_autonomy", "true"},
+                    {"persistent_manifest", "true"},
+                    {"persistent_settings", "true"},
+                    {
+                        "driver_profile_families",
+                        "DHT_PULSE_SENSOR,GPIO_DIGITAL_INPUT"
+                    },
                 }
             );
         }
@@ -154,7 +162,10 @@ RuntimeFrame ProtocolDispatcher::handle(const RuntimeFrame& request) {
             const auto payload = request.fields.at("payload");
             const auto manifest = parser_.parse(payload);
             std::string error;
-            const bool ok = core_.deploy(manifest, error);
+            bool ok = core_.deploy(manifest, error);
+            if (ok) {
+                ok = core_.persistManifest(payload, error);
+            }
             return response(
                 MessageType::DEPLOY_RESULT,
                 request,

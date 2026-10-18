@@ -57,6 +57,14 @@ class DefaultProjectCompilerTest {
         assertEquals("reference", success.bundle.designIr.project.name)
         assertEquals(ValidationState.PASS, success.bundle.validation.state)
         assertEquals("1.0", success.bundle.manifest?.version)
+        assertEquals(
+            CoreOperationMode.AUTONOMOUS_MCU,
+            success.bundle.designIr.autonomy.coreOperationMode,
+        )
+        assertEquals(
+            true,
+            success.bundle.designIr.autonomy.localSafetyExecutionRequired,
+        )
     }
 
     private fun requirements() = ResolvedRequirements(

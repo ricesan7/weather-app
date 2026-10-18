@@ -93,8 +93,14 @@ class DefaultDiagramCompiler(
 
         val boardSpec = engineeringCatalog.board(graph.board.boardId)
             ?: error("Board spec missing: " + graph.board.boardId)
-        val boardAsset = assetCatalog.asset(graph.board.boardId)
-            ?: error("Board visual asset missing: " + graph.board.boardId)
+        val boardAsset = completeAssetPins(
+            asset =
+                assetCatalog.asset(graph.board.boardId)
+                    ?: genericBoardAsset(boardSpec),
+            pins = boardSpec.pins.map {
+                it.pinId to it.label
+            },
+        )
 
         placements += placement(
             entityId = graph.board.boardId,
@@ -111,8 +117,14 @@ class DefaultDiagramCompiler(
         graph.components.forEach { instance ->
             val spec = engineeringCatalog.component(instance.componentId)
                 ?: error("Component spec missing: " + instance.componentId)
-            val asset = assetCatalog.asset(instance.componentId)
-                ?: error("Component visual asset missing: " + instance.componentId)
+            val asset = completeAssetPins(
+                asset =
+                    assetCatalog.asset(instance.componentId)
+                        ?: genericComponentAsset(spec),
+                pins = spec.pins.map {
+                    it.pinId to it.label
+                },
+            )
 
             val origin = when (spec.kind) {
                 ComponentKind.SENSOR -> {
@@ -163,6 +175,132 @@ class DefaultDiagramCompiler(
             }
 
         return placements
+    }
+
+    private fun genericBoardAsset(
+        spec: BoardSpec,
+    ): DiagramAsset =
+        DiagramAsset(
+            assetId = "generated_board_" + spec.boardId,
+            key = spec.boardId,
+            displayName = spec.displayName,
+            kind = DiagramVisualKind.MCU_BOARD,
+            size = VisualSize(190.0, 260.0),
+            pinAnchors = generatedAnchors(
+                spec.pins.map {
+                    it.pinId to it.label
+                },
+                VisualSize(190.0, 260.0),
+            ),
+        )
+
+    private fun genericComponentAsset(
+        spec: ComponentSpec,
+    ): DiagramAsset {
+        val kind = when (spec.kind) {
+            ComponentKind.SENSOR ->
+                DiagramVisualKind.SENSOR_MODULE
+            ComponentKind.DRIVER,
+            ComponentKind.LEVEL_SHIFTER ->
+                DiagramVisualKind.DIP_IC
+            ComponentKind.ACTUATOR ->
+                DiagramVisualKind.GENERIC
+            ComponentKind.DISPLAY,
+            ComponentKind.STORAGE,
+            ComponentKind.POWER_SUPPLY,
+            ComponentKind.OTHER ->
+                DiagramVisualKind.GENERIC
+        }
+        val height =
+            (80.0 + spec.pins.size * 24.0)
+                .coerceIn(120.0, 300.0)
+        val size = VisualSize(190.0, height)
+        return DiagramAsset(
+            assetId =
+                "generated_component_" +
+                    spec.componentId,
+            key = spec.componentId,
+            displayName = spec.displayName,
+            kind = kind,
+            size = size,
+            pinAnchors = generatedAnchors(
+                spec.pins.map {
+                    it.pinId to it.label
+                },
+                size,
+            ),
+        )
+    }
+
+    private fun completeAssetPins(
+        asset: DiagramAsset,
+        pins: List<Pair<String, String>>,
+    ): DiagramAsset {
+        val missing = pins.filterNot {
+            asset.pinAnchors.containsKey(it.first)
+        }
+        if (missing.isEmpty()) return asset
+
+        val generated =
+            generatedAnchors(
+                pins,
+                asset.size,
+            )
+        return asset.copy(
+            pinAnchors =
+                generated + asset.pinAnchors,
+        )
+    }
+
+    private fun generatedAnchors(
+        pins: List<Pair<String, String>>,
+        size: VisualSize,
+    ): Map<String, DiagramPinAnchor> {
+        if (pins.isEmpty()) return emptyMap()
+
+        val left = pins.filterIndexed {
+            index, _ ->
+            index % 2 == 0
+        }
+        val right = pins.filterIndexed {
+            index, _ ->
+            index % 2 == 1
+        }
+
+        fun sideAnchors(
+            entries: List<Pair<String, String>>,
+            x: Double,
+        ): Map<String, DiagramPinAnchor> {
+            if (entries.isEmpty()) return emptyMap()
+            val spacing =
+                size.height / (entries.size + 1)
+            return entries.mapIndexed {
+                    index, (pinId, label) ->
+                pinId to
+                    DiagramPinAnchor(
+                        label = label,
+                        point = VisualPoint(
+                            x = x,
+                            y = spacing * (index + 1),
+                        ),
+                    )
+            }.toMap()
+        }
+
+        return buildMap {
+            putAll(
+                sideAnchors(
+                    left,
+                    0.0,
+                )
+            )
+            putAll(
+                sideAnchors(
+                    right,
+                    size.width,
+                )
+            )
+        }
     }
 
     private fun placement(

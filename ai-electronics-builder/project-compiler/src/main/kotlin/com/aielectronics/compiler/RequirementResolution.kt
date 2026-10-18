@@ -249,6 +249,8 @@ class DefaultRequirementResolver(
             slots = resolved,
             assumptions = existing?.assumptions.orEmpty(),
             unresolved = missing,
+            requestedComponents =
+                RequestedComponentExtractor.extract(goal),
         )
 
         val blocking = missing.filter { it.blocking }

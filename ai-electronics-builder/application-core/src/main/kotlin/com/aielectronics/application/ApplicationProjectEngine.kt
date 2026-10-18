@@ -12,8 +12,10 @@ import com.aielectronics.compiler.DefaultCapabilityMapper
 import com.aielectronics.compiler.DefaultDesignCoreAssembler
 import com.aielectronics.compiler.DefaultDiagnosticCompiler
 import com.aielectronics.compiler.DefaultManifestCompiler
+import com.aielectronics.compiler.DefaultOfflineAutonomyCompiler
 import com.aielectronics.compiler.DefaultProjectCompiler
 import com.aielectronics.compiler.DefaultRequirementResolver
+import com.aielectronics.compiler.DefaultSoftwareArchitectureCompiler
 import com.aielectronics.compiler.DefaultUiCompiler
 import com.aielectronics.compiler.DiagramCompiler
 import com.aielectronics.compiler.RequirementResolution
@@ -40,6 +42,7 @@ class ApplicationProjectEngine(
         circuitCompiler = CatalogCircuitCompiler(catalog),
         electricalValidator = CatalogElectricalValidator(catalog),
         behaviorCompiler = DefaultBehaviorCompiler(),
+        offlineAutonomyCompiler = DefaultOfflineAutonomyCompiler(),
         coreAssembler = DefaultDesignCoreAssembler(),
         diagramCompiler = object : DiagramCompiler {
             override fun compile(graph: CircuitGraph): Result<DiagramSpec> =
@@ -48,6 +51,7 @@ class ApplicationProjectEngine(
         manifestCompiler = DefaultManifestCompiler(catalog),
         uiCompiler = DefaultUiCompiler(),
         diagnosticCompiler = DefaultDiagnosticCompiler(),
+        softwareArchitectureCompiler = DefaultSoftwareArchitectureCompiler(),
     )
 
     fun resolve(intent: IntentDraft): RequirementResolution =

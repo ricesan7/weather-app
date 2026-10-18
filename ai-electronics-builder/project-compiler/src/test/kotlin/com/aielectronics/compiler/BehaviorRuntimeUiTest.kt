@@ -53,6 +53,14 @@ class BehaviorRuntimeUiTest {
             .getOrThrow()
 
         assertEquals("xiao_esp32s3", manifest.boardId)
+        assertEquals("1.1", manifest.version)
+        assertEquals("0.2.0", manifest.minimumRuntimeVersion)
+        assertEquals(
+            CoreOperationMode.AUTONOMOUS_MCU,
+            manifest.autonomy.coreOperationMode,
+        )
+        assertTrue(manifest.autonomy.localSafetyExecutionRequired)
+        assertTrue(manifest.autonomy.persistRuntimeSettings)
         assertEquals("pin_xiao_d4_gpio5", manifest.buses.single().pins.getValue("SDA"))
         assertEquals("pin_xiao_d5_gpio6", manifest.buses.single().pins.getValue("SCL"))
         assertEquals("pin_xiao_d3_gpio4", manifest.gpio.single().pinId)
@@ -91,7 +99,18 @@ class BehaviorRuntimeUiTest {
         val behavior = DefaultBehaviorCompiler().compile(req, capabilities).getOrThrow()
 
         return DefaultDesignCoreAssembler()
-            .assemble(req, capabilities, board, components, graph, behavior, report)
+            .assemble(
+                req,
+                capabilities,
+                board,
+                components,
+                graph,
+                behavior,
+                report,
+                DefaultOfflineAutonomyCompiler()
+                    .compile(req, capabilities, behavior)
+                    .getOrThrow(),
+            )
             .getOrThrow()
     }
 
