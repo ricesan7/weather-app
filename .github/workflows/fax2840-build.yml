@@ -73,6 +73,9 @@ jobs:
       - name: Regression test - v1.3.5 extended density curve
         run: python3 Fax2840UsbPrint/tests/test_v135_density_curve.py
 
+      - name: Regression test - v1.3.6 wide table readability
+        run: python3 Fax2840UsbPrint/tests/test_v136_wide_tables.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
