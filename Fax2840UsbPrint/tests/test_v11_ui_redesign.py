@@ -14,7 +14,8 @@ def main():
         assert token in u, f"{token} missing from AppUi"
 
     main_activity = read("MainActivity.java")
-    assert "PDFを開いて印刷" in main_activity, "primary PDF open action missing"
+    assert ("PDFを開いて印刷" in main_activity
+            or "PDF / Excel / CSVを開いて印刷" in main_activity), "primary document open action missing"
     assert "Intent.ACTION_OPEN_DOCUMENT" in main_activity, "system PDF picker missing"
     assert "SharedPdfPreviewActivity" in main_activity, "picked PDF must open preview flow"
     assert "印刷設定" in main_activity, "print settings card missing"
