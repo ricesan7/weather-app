@@ -76,6 +76,9 @@ jobs:
       - name: Regression test - v1.3.6 wide table readability
         run: python3 Fax2840UsbPrint/tests/test_v136_wide_tables.py
 
+      - name: Regression test - v1.3.7 direct Excel CSV printing
+        run: python3 Fax2840UsbPrint/tests/test_v137_direct_tables.py
+
       - name: Regression test - v1.3.7 navigation and spreadsheet help
         run: python3 Fax2840UsbPrint/tests/test_v137_navigation_help.py
 
