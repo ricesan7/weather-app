@@ -5,7 +5,7 @@ import android.content.SharedPreferences;
 
 final class PrintQualitySettings {
     static final int MIN_DENSITY = 1;
-    static final int MAX_DENSITY = 10;
+    static final int MAX_DENSITY = 15;
     static final int DEFAULT_DENSITY = 5;
 
     private static final String PREFS = "fax2840_print_quality";

@@ -11,7 +11,7 @@ def main():
     assert settings.exists(), "PrintQualitySettings.java missing"
     s = settings.read_text(encoding="utf-8")
     assert "DEFAULT_DENSITY = 5" in s, "default density must be 5"
-    assert "MIN_DENSITY = 1" in s and "MAX_DENSITY = 10" in s, "density range must be 1..10"
+    assert "MIN_DENSITY = 1" in s and "MAX_DENSITY = 15" in s, "density range must be 1..15"
     assert "getDensity" in s and "setDensity" in s, "persistent density getters/setters missing"
 
     main = read("MainActivity.java")
@@ -25,7 +25,7 @@ def main():
 
     printer = read("BrotherHbpPrinter.java")
     assert "shouldPrintBlack(int luminance, int x, int y, int density)" in printer, "density-aware dithering missing"
-    assert "densityOffset" in printer, "density must influence dither luminance"
+    assert "PrintDensityCurve.adjustedLuminance" in printer, "density curve must influence dither luminance"
     assert "clampDensity" in printer, "density input must be clamped"
 
     print("v0.7 density-control regression checks passed")

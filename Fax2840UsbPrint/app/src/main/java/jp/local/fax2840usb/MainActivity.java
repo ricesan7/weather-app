@@ -112,7 +112,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.3.4");
+        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.3.5");
         AppUi.styleBody(subtitle);
         subtitle.setPadding(0, dp(2), 0, dp(4));
         root.addView(subtitle, new LinearLayout.LayoutParams(
@@ -243,7 +243,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView densityHint = new TextView(this);
-        densityHint.setText("1 = 薄い   5 = 標準   10 = 濃い");
+        densityHint.setText("1 = 薄い   5 = 標準   10 = 濃い   15 = 色付きセル優先");
         AppUi.styleBody(densityHint);
         settingsCard.addView(densityHint);
 

@@ -22,7 +22,6 @@ final class BrotherHbpPrinter {
     private static final int PRINTABLE_HEIGHT_PX = A4_HEIGHT_PX - (PRINTABLE_MARGIN_PX * 2);
 
     private static final int STRIPE_HEIGHT = 64;
-    private static final double MIDTONE_GAMMA = 0.78;
 
     // Content detection is intentionally low resolution: enough to find the
     // actual table/document area without allocating another full 600dpi page.
@@ -220,7 +219,7 @@ final class BrotherHbpPrinter {
                 + " printable=" + PRINTABLE_WIDTH_PX + "x" + PRINTABLE_HEIGHT_PX
                 + " margin=" + PRINTABLE_MARGIN_PX
                 + " source=" + pageWidth + "x" + pageHeight
-                + " dither=8x8 gamma=" + MIDTONE_GAMMA
+                + " dither=8x8"
                 + " density=" + density);
 
         int lineBytes = (A4_WIDTH_PX + 7) / 8;
@@ -462,10 +461,7 @@ final class BrotherHbpPrinter {
         if (luminance <= 32) return true;
         if (luminance >= 252) return false;
 
-        int d = clampDensity(density);
-        int densityOffset = (PrintQualitySettings.DEFAULT_DENSITY - d) * 10;
-        int adjusted = brightenLuminance(luminance) + densityOffset;
-        adjusted = Math.max(0, Math.min(255, adjusted));
+        int adjusted = PrintDensityCurve.adjustedLuminance(luminance, density);
 
         int threshold = (BAYER_8X8[y & 7][x & 7] * 4) + 2;
         return adjusted < threshold;
@@ -474,15 +470,6 @@ final class BrotherHbpPrinter {
     private static int clampDensity(int density) {
         return Math.max(PrintQualitySettings.MIN_DENSITY,
                 Math.min(PrintQualitySettings.MAX_DENSITY, density));
-    }
-
-    private static int brightenLuminance(int luminance) {
-        if (luminance <= 32) return luminance;
-        if (luminance >= 252) return 255;
-
-        double normalized = luminance / 255.0;
-        int adjusted = (int)Math.round(Math.pow(normalized, MIDTONE_GAMMA) * 255.0);
-        return Math.max(0, Math.min(255, adjusted));
     }
 
     private static void event(DiagnosticSink sink, String message) {
