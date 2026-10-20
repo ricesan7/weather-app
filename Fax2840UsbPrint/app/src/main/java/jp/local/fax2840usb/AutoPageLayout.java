@@ -12,7 +12,7 @@ final class AutoPageLayout {
     private static final float MIN_READABLE_WIDTH_SCALE = 0.85f;
     private static final float TARGET_SEGMENT_ASPECT = 3.6f;
     private static final float LANDSCAPE_SEGMENT_ASPECT = 1.12f;
-    private static final int MAX_COLUMNS = 4;
+    private static final int MAX_COLUMNS = 8;
 
     private AutoPageLayout() {}
 

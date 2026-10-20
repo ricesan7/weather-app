@@ -13,6 +13,8 @@ final class PageSplitSettings {
     static final int MODE_HORIZONTAL_2 = 2;
     static final int MODE_HORIZONTAL_3 = 3;
     static final int MODE_HORIZONTAL_4 = 4;
+    static final int MODE_HORIZONTAL_6 = 6;
+    static final int MODE_HORIZONTAL_8 = 8;
     static final int DEFAULT_MODE = MODE_AUTO_CONTENT;
 
     static final int[] MODES = {
@@ -20,6 +22,8 @@ final class PageSplitSettings {
             MODE_HORIZONTAL_2,
             MODE_HORIZONTAL_3,
             MODE_HORIZONTAL_4,
+            MODE_HORIZONTAL_6,
+            MODE_HORIZONTAL_8,
             MODE_FIT_PAGE
     };
 
@@ -28,6 +32,8 @@ final class PageSplitSettings {
             "横2分割",
             "横3分割",
             "横4分割",
+            "横6分割",
+            "横8分割",
             "1ページに収める"
     };
 

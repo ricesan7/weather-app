@@ -403,6 +403,10 @@ final class BrotherHbpPrinter {
                 return 3;
             case PageSplitSettings.MODE_HORIZONTAL_4:
                 return 4;
+            case PageSplitSettings.MODE_HORIZONTAL_6:
+                return 6;
+            case PageSplitSettings.MODE_HORIZONTAL_8:
+                return 8;
             case PageSplitSettings.MODE_AUTO_CONTENT:
             default:
                 float targetWidthPt = pageWidth > pageHeight

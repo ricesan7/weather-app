@@ -112,7 +112,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.3.5");
+        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.3.6");
         AppUi.styleBody(subtitle);
         subtitle.setPadding(0, dp(2), 0, dp(4));
         root.addView(subtitle, new LinearLayout.LayoutParams(
@@ -273,7 +273,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView splitHint = new TextView(this);
-        splitHint.setText("Googleスプレッドシートは「自動（表向け）」がおすすめです。");
+        splitHint.setText("列数が多い表は「自動（表向け）」または横6/8分割を使うと、文字を小さくしすぎず印刷できます。");
         AppUi.styleBody(splitHint);
         splitHint.setPadding(0, dp(2), 0, 0);
         settingsCard.addView(splitHint);
