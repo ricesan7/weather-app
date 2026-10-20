@@ -12,7 +12,8 @@ def main():
     assert "PRINTABLE_WIDTH_PX" in printer and "PRINTABLE_HEIGHT_PX" in printer, "printable-area dimensions missing"
     assert "BAYER_8X8" in printer, "8x8 ordered dithering matrix missing"
     assert "shouldPrintBlack" in printer, "ordered dithering decision helper missing"
-    assert "brightenLuminance" in printer, "mid-tone lightening helper missing"
+    curve = read("PrintDensityCurve.java")
+    assert "MIDTONE_GAMMA" in curve and "adjustedLuminance" in curve, "mid-tone lightening helper missing"
     assert "BLACK_THRESHOLD" not in printer, "fixed threshold must be removed for grayscale illustrations"
     assert "PRINTABLE_MARGIN_PX" in printer and "pageToStripeMatrix" in printer, "render transform must account for printable margins"
 
