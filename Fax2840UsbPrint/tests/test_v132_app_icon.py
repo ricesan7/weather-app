@@ -45,9 +45,9 @@ def main():
     assert_valid_png(ICON)
 
     build = BUILD.read_text(encoding="utf-8")
-    assert "versionName '1.3.6'" in build, "versionName must be 1.3.6"
+    assert "versionName '1.3.7'" in build, "versionName must be 1.3.7"
 
-    print("v1.3.6 app icon regression checks passed")
+    print("v1.3.7 app icon regression checks passed")
 
 
 if __name__ == "__main__":

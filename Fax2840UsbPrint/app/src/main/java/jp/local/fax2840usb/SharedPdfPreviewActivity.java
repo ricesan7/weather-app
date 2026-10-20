@@ -33,6 +33,8 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 public final class SharedPdfPreviewActivity extends Activity {
+    static final String EXTRA_LOCAL_PDF_PATH = "local_pdf_path";
+    static final String EXTRA_TABLE_PDF = "table_pdf";
     private TextView status;
     private LinearLayout previewContainer;
     private Button printButton;
@@ -40,11 +42,23 @@ public final class SharedPdfPreviewActivity extends Activity {
     private File preparedPdf;
     private int preparedPageCount;
     private int preparedOrientationMode = PrintOrientationSettings.MODE_PORTRAIT;
+    private boolean directTableMode;
     private final AtomicInteger generation = new AtomicInteger();
 
     @Override protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        directTableMode = getIntent() != null && getIntent().getBooleanExtra(EXTRA_TABLE_PDF, false);
         buildUi();
+
+        String localPath = getIntent() == null ? null : getIntent().getStringExtra(EXTRA_LOCAL_PDF_PATH);
+        if (localPath != null && !localPath.isEmpty()) {
+            File local = new File(localPath);
+            if (local.exists()) {
+                sourcePdf = local;
+                regenerate();
+                return;
+            }
+        }
 
         Uri incoming = extractSharedPdf(getIntent());
         if (incoming == null) {
@@ -65,8 +79,20 @@ public final class SharedPdfPreviewActivity extends Activity {
         root.setGravity(Gravity.CENTER_HORIZONTAL);
         root.setBackgroundColor(AppUi.COLOR_BACKGROUND);
 
+        Button homeButton = new Button(this);
+        homeButton.setText("← トップへ戻る");
+        AppUi.styleSecondaryButton(homeButton);
+        homeButton.setOnClickListener(v -> {
+            Intent home = new Intent(this, MainActivity.class);
+            home.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_SINGLE_TOP);
+            startActivity(home);
+            finish();
+        });
+        root.addView(homeButton, new LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
+
         TextView title = new TextView(this);
-        title.setText("分割プレビュー");
+        title.setText(directTableMode ? "Excel / CSV プレビュー" : "分割プレビュー");
         AppUi.styleTitle(title);
         root.addView(title, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
@@ -91,7 +117,8 @@ public final class SharedPdfPreviewActivity extends Activity {
         modeAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         modeSpinner.setAdapter(modeAdapter);
         modeSpinner.setSelection(PageSplitSettings.indexOfMode(
-                PageSplitSettings.getMode(this)));
+                directTableMode ? PageSplitSettings.MODE_FIT_PAGE : PageSplitSettings.getMode(this)));
+        modeSpinner.setEnabled(!directTableMode);
         modeSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 int safe = Math.max(0, Math.min(PageSplitSettings.MODES.length - 1, position));
@@ -119,7 +146,9 @@ public final class SharedPdfPreviewActivity extends Activity {
         orientationAdapter.setDropDownViewResource(android.R.layout.simple_spinner_dropdown_item);
         orientationSpinner.setAdapter(orientationAdapter);
         orientationSpinner.setSelection(PrintOrientationSettings.indexOfMode(
-                PrintOrientationSettings.getMode(this)));
+                directTableMode ? PrintOrientationSettings.MODE_LANDSCAPE
+                        : PrintOrientationSettings.getMode(this)));
+        orientationSpinner.setEnabled(!directTableMode);
         orientationSpinner.setOnItemSelectedListener(new AdapterView.OnItemSelectedListener() {
             @Override public void onItemSelected(AdapterView<?> parent, View view, int position, long id) {
                 int safe = Math.max(0, Math.min(
@@ -221,8 +250,10 @@ public final class SharedPdfPreviewActivity extends Activity {
         File source = sourcePdf;
         if (source == null) return;
 
-        int splitMode = PageSplitSettings.getMode(this);
-        int orientationMode = PrintOrientationSettings.getMode(this);
+        int splitMode = directTableMode
+                ? PageSplitSettings.MODE_FIT_PAGE : PageSplitSettings.getMode(this);
+        int orientationMode = directTableMode
+                ? PrintOrientationSettings.MODE_LANDSCAPE : PrintOrientationSettings.getMode(this);
         int token = generation.incrementAndGet();
 
         runOnUiThread(() -> {

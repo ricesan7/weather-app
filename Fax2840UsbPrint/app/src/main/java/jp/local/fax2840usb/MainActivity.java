@@ -6,12 +6,14 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
+import android.database.Cursor;
 import android.hardware.usb.UsbDevice;
 import android.hardware.usb.UsbManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.provider.OpenableColumns;
 import android.view.Gravity;
 import android.view.View;
 import android.view.ViewGroup;
@@ -24,12 +26,13 @@ import android.widget.SeekBar;
 import android.widget.Spinner;
 import android.widget.TextView;
 
+import java.io.File;
 import java.io.IOException;
 import java.util.Locale;
 
 public final class MainActivity extends Activity {
     private static final String ACTION_USB_PERMISSION = "jp.local.fax2840usb.USB_PERMISSION";
-    private static final int REQUEST_OPEN_PDF = 1001;
+    private static final int REQUEST_OPEN_DOCUMENT = 1001;
 
     private TextView status;
     private TextView connectionBadge;
@@ -56,12 +59,14 @@ public final class MainActivity extends Activity {
         buildUi();
         registerPermissionReceiver();
         handleUsbIntent(getIntent());
+        handleSharedTableIntent(getIntent());
     }
 
     @Override protected void onNewIntent(Intent intent) {
         super.onNewIntent(intent);
         setIntent(intent);
         handleUsbIntent(intent);
+        handleSharedTableIntent(intent);
     }
 
     @Override protected void onResume() {
@@ -85,14 +90,10 @@ public final class MainActivity extends Activity {
     @Override @SuppressWarnings("deprecation")
     protected void onActivityResult(int requestCode, int resultCode, Intent data) {
         super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode != REQUEST_OPEN_PDF || resultCode != RESULT_OK || data == null) return;
+        if (requestCode != REQUEST_OPEN_DOCUMENT || resultCode != RESULT_OK || data == null) return;
         Uri uri = data.getData();
         if (uri == null) return;
-
-        Intent preview = new Intent(this, SharedPdfPreviewActivity.class);
-        preview.setData(uri);
-        preview.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
-        startActivity(preview);
+        openDocumentUri(uri);
     }
 
     private void buildUi() {
@@ -112,7 +113,7 @@ public final class MainActivity extends Activity {
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
 
         TextView subtitle = new TextView(this);
-        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.3.6");
+        subtitle.setText("Brother FAX-2840  •  USB印刷  •  v1.3.7");
         AppUi.styleBody(subtitle);
         subtitle.setPadding(0, dp(2), 0, dp(4));
         root.addView(subtitle, new LinearLayout.LayoutParams(
@@ -194,15 +195,15 @@ public final class MainActivity extends Activity {
         actionCard.addView(actionTitle);
 
         TextView actionHint = new TextView(this);
-        actionHint.setText("PDFを選ぶと、分割プレビューを確認してから印刷できます。GoogleスプレッドシートからPDF共有した場合も同じ画面に入ります。");
+        actionHint.setText("PDFは従来どおり分割印刷できます。Excel（.xlsx）とCSVは直接読み込み、文字を小さくしすぎないA4横向き複数ページへ自動分割します。");
         AppUi.styleBody(actionHint);
         actionHint.setPadding(0, dp(6), 0, dp(12));
         actionCard.addView(actionHint);
 
         Button openPdf = new Button(this);
-        openPdf.setText("PDFを開いて印刷");
+        openPdf.setText("PDF / Excel / CSVを開いて印刷");
         AppUi.stylePrimaryButton(openPdf);
-        openPdf.setOnClickListener(v -> openPdfPicker());
+        openPdf.setOnClickListener(v -> openDocumentPicker());
         actionCard.addView(openPdf, new LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.WRAP_CONTENT));
         AppUi.addCard(root, actionCard);
@@ -416,14 +417,86 @@ public final class MainActivity extends Activity {
         return lp;
     }
 
-    private void openPdfPicker() {
+    private void openDocumentPicker() {
         Intent intent = new Intent(Intent.ACTION_OPEN_DOCUMENT);
         intent.addCategory(Intent.CATEGORY_OPENABLE);
-        intent.setType("application/pdf");
+        intent.setType("*/*");
+        intent.putExtra(Intent.EXTRA_MIME_TYPES, new String[]{
+                "application/pdf",
+                "text/csv",
+                "text/comma-separated-values",
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        });
         intent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         @SuppressWarnings("deprecation")
         Intent picker = intent;
-        startActivityForResult(picker, REQUEST_OPEN_PDF);
+        startActivityForResult(picker, REQUEST_OPEN_DOCUMENT);
+    }
+
+    private void openDocumentUri(Uri uri) {
+        if (isTableUri(uri)) {
+            convertTableAndPreview(uri);
+            return;
+        }
+        Intent preview = new Intent(this, SharedPdfPreviewActivity.class);
+        preview.setData(uri);
+        preview.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+        startActivity(preview);
+    }
+
+    private void convertTableAndPreview(Uri uri) {
+        status.setText("Excel / CSVを印刷用ページへ変換中…");
+        new Thread(() -> {
+            try {
+                File dir = new File(getCacheDir(), "table-preview");
+                if (!dir.exists() && !dir.mkdirs()) throw new IOException("一時フォルダーを作成できません");
+                File out = new File(dir, "table-" + System.currentTimeMillis() + ".pdf");
+                TableFileToPdf.Result result = TableFileToPdf.convert(this, uri, out);
+
+                runOnUiThread(() -> {
+                    status.setText(result.sourceLabel + "を " + result.pageCount + "ページに分割しました。");
+                    Intent preview = new Intent(this, SharedPdfPreviewActivity.class);
+                    preview.putExtra(SharedPdfPreviewActivity.EXTRA_LOCAL_PDF_PATH, result.file.getAbsolutePath());
+                    preview.putExtra(SharedPdfPreviewActivity.EXTRA_TABLE_PDF, true);
+                    startActivity(preview);
+                });
+            } catch (IOException | RuntimeException e) {
+                runOnUiThread(() -> status.setText("Excel / CSV変換エラー: " + safeMessage(e)));
+            }
+        }, "fax2840-table-convert").start();
+    }
+
+    private boolean isTableUri(Uri uri) {
+        String mime = getContentResolver().getType(uri);
+        String lowerMime = mime == null ? "" : mime.toLowerCase(Locale.US);
+        if (lowerMime.contains("spreadsheetml") || lowerMime.contains("csv")
+                || lowerMime.contains("comma-separated")) return true;
+        String name = displayName(uri);
+        String lowerName = name == null ? "" : name.toLowerCase(Locale.US);
+        return lowerName.endsWith(".xlsx") || lowerName.endsWith(".csv");
+    }
+
+    private String displayName(Uri uri) {
+        try (Cursor cursor = getContentResolver().query(
+                uri, new String[]{OpenableColumns.DISPLAY_NAME}, null, null, null)) {
+            if (cursor != null && cursor.moveToFirst()) return cursor.getString(0);
+        } catch (RuntimeException ignored) {}
+        return uri == null ? "" : uri.getLastPathSegment();
+    }
+
+    private void handleSharedTableIntent(Intent intent) {
+        if (intent == null || !Intent.ACTION_SEND.equals(intent.getAction())) return;
+        String type = intent.getType();
+        if (type == null || !(type.contains("csv") || type.contains("spreadsheetml"))) return;
+        Uri uri;
+        if (Build.VERSION.SDK_INT >= 33) {
+            uri = intent.getParcelableExtra(Intent.EXTRA_STREAM, Uri.class);
+        } else {
+            @SuppressWarnings("deprecation")
+            Uri legacy = intent.getParcelableExtra(Intent.EXTRA_STREAM);
+            uri = legacy;
+        }
+        if (uri != null) convertTableAndPreview(uri);
     }
 
     private void runDirectTest() {
