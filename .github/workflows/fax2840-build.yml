@@ -67,6 +67,9 @@ jobs:
       - name: Regression test - v1.3.2 app icon
         run: python3 Fax2840UsbPrint/tests/test_v132_app_icon.py
 
+      - name: Regression test - v1.3.4 prepared PDF orientation handoff
+        run: python3 Fax2840UsbPrint/tests/test_v134_orientation_handoff.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
