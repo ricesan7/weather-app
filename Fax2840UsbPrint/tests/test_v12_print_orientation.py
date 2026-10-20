@@ -22,8 +22,8 @@ def main():
     assert "印刷向き" in preview, "orientation selector missing from preview UI"
     assert "PrintOrientationSettings.setMode" in preview, "preview orientation selection must persist"
     assert "PrintOrientationSettings.getMode" in preview, "preview must read saved orientation"
-    assert "MediaSize.ISO_A4.asLandscape()" in preview, "Android print preview must start in landscape when selected"
-    assert "preparedOrientationMode" in preview, "prepared PDF orientation must drive Android print attributes"
+    assert "preparedOrientationMode" in preview, "prepared PDF orientation must be retained in the generated PDF"
+    assert "setMediaSize(" not in preview, "prepared PDF orientation must not be forced again in Android print attributes"
 
     main_activity = read("MainActivity.java")
     assert "印刷向き" in main_activity, "orientation selector missing from home settings"

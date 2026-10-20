@@ -168,7 +168,7 @@ public final class SharedPdfPreviewActivity extends Activity {
         root.addView(previewScroll, previewParams);
 
         TextView printHint = new TextView(this);
-        printHint.setText("印刷向きはAndroidの印刷画面にも引き継ぎます。必要なら同じ向きになっていることを確認してください。");
+        printHint.setText("印刷向きはこのプレビューPDFに反映済みです。Android印刷画面では向きを二重指定しません。");
         AppUi.styleBody(printHint);
         printHint.setGravity(Gravity.CENTER);
         printHint.setPadding(0, dp(4), 0, dp(6));
@@ -326,13 +326,7 @@ public final class SharedPdfPreviewActivity extends Activity {
             return;
         }
 
-        PrintAttributes.MediaSize mediaSize =
-                preparedOrientationMode == PrintOrientationSettings.MODE_LANDSCAPE
-                        ? PrintAttributes.MediaSize.ISO_A4.asLandscape()
-                        : PrintAttributes.MediaSize.ISO_A4.asPortrait();
-
         PrintAttributes attrs = new PrintAttributes.Builder()
-                .setMediaSize(mediaSize)
                 .setColorMode(PrintAttributes.COLOR_MODE_MONOCHROME)
                 .build();
 
