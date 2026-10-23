@@ -17,6 +17,8 @@ public final class Fax2840Usb implements Closeable {
     public static final int BROTHER_VENDOR_ID = 0x04F9;
     private static final int USB_CLASS_PRINTER = 7;
     private static final int CHUNK = 16 * 1024;
+    private static final int USB_WRITE_TIMEOUT_MS = 30000;
+    private static final int MAX_TIMEOUT_RETRIES = 3;
     private final UsbDevice device;
     private final UsbDeviceConnection connection;
     private final UsbInterface printerInterface;
@@ -114,10 +116,27 @@ public final class Fax2840Usb implements Closeable {
 
     public synchronized void write(byte[] data) throws IOException {
         int offset = 0;
+        int timeoutRetries = 0;
         while (offset < data.length) {
             int len = Math.min(CHUNK, data.length - offset);
-            int sent = connection.bulkTransfer(bulkOut, data, offset, len, 10000);
-            if (sent <= 0) throw new IOException("USB bulk transfer failed at byte " + offset);
+            int sent = connection.bulkTransfer(
+                    bulkOut, data, offset, len, USB_WRITE_TIMEOUT_MS);
+
+            if (sent <= 0) {
+                timeoutRetries++;
+                if (timeoutRetries > MAX_TIMEOUT_RETRIES) {
+                    throw new IOException(
+                            "USB bulk transfer timed out after "
+                                    + MAX_TIMEOUT_RETRIES
+                                    + " retries at byte " + offset);
+                }
+                // FAX-2840 has limited onboard memory. During long raster jobs
+                // the printer can temporarily stop accepting bulk data while
+                // it drains/prints buffered pages. Retry the same chunk.
+                continue;
+            }
+
+            timeoutRetries = 0;
             offset += sent;
             bytesWritten += sent;
         }
