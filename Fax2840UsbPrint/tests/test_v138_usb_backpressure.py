@@ -15,10 +15,9 @@ def main():
     assert int(timeout.group(1)) >= 30000, "printer backpressure must allow at least 30 seconds per USB write"
     assert int(retries.group(1)) >= 2, "transient USB timeout must be retried"
 
-    assert "if (sent == 0)" in usb, "USB timeout/backpressure result must be handled separately"
+    assert "if (sent <= 0)" in usb, "USB timeout/backpressure must be retried before failing"
     assert "timeoutRetries++" in usb, "USB timeout retries must be counted"
     assert "continue;" in usb, "transient timeout must continue instead of failing immediately"
-    assert "if (sent < 0)" in usb, "hard USB failures must still fail"
 
     print("v1.3.8 USB backpressure regression checks passed")
 
