@@ -85,6 +85,9 @@ jobs:
       - name: Regression test - v1.3.8 USB backpressure
         run: python3 Fax2840UsbPrint/tests/test_v138_usb_backpressure.py
 
+      - name: Regression test - v1.3.9 Google Docs placement
+        run: python3 Fax2840UsbPrint/tests/test_v139_google_docs_placement.py
+
       - name: Set up Gradle 8.9
         uses: gradle/actions/setup-gradle@v4
         with:
