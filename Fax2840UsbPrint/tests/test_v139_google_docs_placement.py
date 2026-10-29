@@ -15,6 +15,10 @@ def main():
     assert "new PrintAttributes.Margins(167, 167, 167, 167)" in service, (
         "print service must advertise the FAX-2840's real ~12pt margins"
     )
+    assert "preparedPreview ? PageSplitSettings.MODE_FIT_PAGE" in service
+    assert ": PageSplitSettings.MODE_AUTO_CONTENT" in service, (
+        "direct app printing must not inherit a manual table split mode"
+    )
 
     helper = JAVA / "DocumentPagePlacement.java"
     assert helper.exists(), "DocumentPagePlacement.java missing"
