@@ -91,7 +91,7 @@ final class BrotherHbpPrinter {
                     if (splitMode == PageSplitSettings.MODE_FIT_PAGE) {
                         pageStarted = true;
                         event(sink, "page " + (pageIndex + 1) + ": fit-page");
-                        writeRasterPage(page, transport, cancelled, sink, density, false);
+                        writeRasterPage(page, transport, cancelled, sink, density, false, false);
                     } else {
                         ContentBounds bounds = detectContentBounds(page, sink);
                         int tileCols = columnsForMode(
@@ -103,7 +103,7 @@ final class BrotherHbpPrinter {
                             pageStarted = true;
                             event(sink, "page " + (pageIndex + 1)
                                     + ": auto preserve-full-page");
-                            writeRasterPage(page, transport, cancelled, sink, density, true);
+                            writeRasterPage(page, transport, cancelled, sink, density, true, true);
                         } else {
                             int tileRows = 1;
                             event(sink, "page " + (pageIndex + 1)
@@ -209,7 +209,8 @@ final class BrotherHbpPrinter {
 
     private static void writeRasterPage(PdfRenderer.Page page, Fax2840Usb transport,
                                         CancelCheck cancelled, DiagnosticSink sink, int density,
-                                        boolean preventUpscale) throws IOException {
+                                        boolean preventUpscale,
+                                        boolean preserveSheetGeometry) throws IOException {
         transport.writeAscii("\033*b1030m");
         HbpCodec.BlockWriter block = new HbpCodec.BlockWriter(transport);
         int pageWidth = page.getWidth();
@@ -229,9 +230,10 @@ final class BrotherHbpPrinter {
             Bitmap bitmap = Bitmap.createBitmap(A4_WIDTH_PX, stripeHeight, Bitmap.Config.ARGB_8888);
             bitmap.eraseColor(Color.WHITE);
 
-            page.render(bitmap, null,
-                    pageToStripeMatrix(pageWidth, pageHeight, startY, preventUpscale),
-                    PdfRenderer.Page.RENDER_MODE_FOR_PRINT);
+            Matrix placement = preserveSheetGeometry
+                    ? documentPageToStripeMatrix(pageWidth, pageHeight, startY, preventUpscale)
+                    : pageToStripeMatrix(pageWidth, pageHeight, startY, preventUpscale);
+            page.render(bitmap, null, placement, PdfRenderer.Page.RENDER_MODE_FOR_PRINT);
 
             rasterizeStripe(bitmap, startY, lineBytes, block, density);
             if ((startY / STRIPE_HEIGHT) % 16 == 0) {
@@ -416,6 +418,45 @@ final class BrotherHbpPrinter {
                         bounds.width(), bounds.height(),
                         targetWidthPt);
         }
+    }
+
+    private static Matrix documentPageToStripeMatrix(
+            int pdfWidth, int pdfHeight, int startY, boolean preventUpscale) {
+        Matrix matrix = new Matrix();
+        float nativeScale = PRINTER_DPI / PDF_POINTS_PER_INCH;
+
+        if (pdfWidth <= pdfHeight) {
+            DocumentPagePlacement.Result p =
+                    DocumentPagePlacement.fit(pdfWidth, pdfHeight, A4_WIDTH_PX, A4_HEIGHT_PX);
+            float scale = preventUpscale
+                    ? AutoPageLayout.limitUpscale(p.scale, nativeScale)
+                    : p.scale;
+            float renderedWidth = pdfWidth * scale;
+            float renderedHeight = pdfHeight * scale;
+            float dx = (A4_WIDTH_PX - renderedWidth) / 2f;
+            float dy = (A4_HEIGHT_PX - renderedHeight) / 2f;
+            matrix.setValues(new float[]{
+                    scale, 0f, dx,
+                    0f, scale, dy - startY,
+                    0f, 0f, 1f
+            });
+        } else {
+            DocumentPagePlacement.Result p =
+                    DocumentPagePlacement.fit(pdfHeight, pdfWidth, A4_WIDTH_PX, A4_HEIGHT_PX);
+            float scale = preventUpscale
+                    ? AutoPageLayout.limitUpscale(p.scale, nativeScale)
+                    : p.scale;
+            float renderedWidth = pdfHeight * scale;
+            float renderedHeight = pdfWidth * scale;
+            float dx = (A4_WIDTH_PX - renderedWidth) / 2f;
+            float dy = (A4_HEIGHT_PX - renderedHeight) / 2f;
+            matrix.setValues(new float[]{
+                    0f, -scale, dx + renderedWidth,
+                    scale, 0f, dy - startY,
+                    0f, 0f, 1f
+            });
+        }
+        return matrix;
     }
 
     private static Matrix pageToStripeMatrix(int pdfWidth, int pdfHeight, int startY,

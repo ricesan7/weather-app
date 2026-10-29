@@ -52,7 +52,7 @@ public final class Fax2840PrintService extends PrintService {
                         .addMediaSize(PrintAttributes.MediaSize.ISO_A4, true)
                         .addResolution(new PrintAttributes.Resolution("600dpi", "600 dpi", 600, 600), true)
                         .setColorModes(PrintAttributes.COLOR_MODE_MONOCHROME, PrintAttributes.COLOR_MODE_MONOCHROME)
-                        .setMinMargins(PrintAttributes.Margins.NO_MARGINS)
+                        .setMinMargins(new PrintAttributes.Margins(167, 167, 167, 167))
                         .build();
 
                 PrinterInfo info = new PrinterInfo.Builder(id, "Brother FAX-2840 (USB)", PrinterInfo.STATUS_IDLE)
@@ -106,9 +106,8 @@ public final class Fax2840PrintService extends PrintService {
                 : printJob.getDocument().getInfo().getName();
         boolean preparedPreview = documentName != null
                 && documentName.startsWith(PreparedPdfPrintAdapter.DOCUMENT_MARKER);
-        int splitMode = preparedPreview
-                ? PageSplitSettings.MODE_FIT_PAGE
-                : PageSplitSettings.getMode(this);
+        int splitMode = preparedPreview ? PageSplitSettings.MODE_FIT_PAGE
+                : PageSplitSettings.MODE_AUTO_CONTENT;
         diag.add("copies=" + copies);
         diag.add("density=" + density);
         diag.add("preparedPreview=" + preparedPreview);
