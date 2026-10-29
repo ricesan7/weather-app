@@ -18,7 +18,7 @@ def main():
     assert "PageSplitSettings.setMode" in main_activity, "mode selection must persist"
 
     service = read("Fax2840PrintService.java")
-    assert "PageSplitSettings.getMode" in service, "PrintService must read page split mode"
+    assert "PageSplitSettings.MODE_AUTO_CONTENT" in service, "direct PrintService jobs must use safe auto layout"
     assert "splitMode=" in service, "diagnostics must record split mode"
 
     printer = read("BrotherHbpPrinter.java")
